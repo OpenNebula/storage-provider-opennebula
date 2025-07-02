@@ -19,8 +19,8 @@ package driver
 import (
 	"context"
 
-	"github.com/OpenNebula/csi-driver-opennebula/pkg/config"
-	"github.com/OpenNebula/csi-driver-opennebula/pkg/opennebula"
+	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/opennebula"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"

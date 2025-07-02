@@ -20,8 +20,8 @@ import (
 	"flag"
 	"os"
 
-	"github.com/OpenNebula/csi-driver-opennebula/pkg/config"
-	"github.com/OpenNebula/csi-driver-opennebula/pkg/driver"
+	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/driver"
 	"k8s.io/klog/v2"
 )
 

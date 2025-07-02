@@ -18,7 +18,7 @@ package driver
 import (
 	"sync"
 
-	"github.com/OpenNebula/csi-driver-opennebula/pkg/config"
+	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 

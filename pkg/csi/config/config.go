@@ -92,3 +92,7 @@ func (c *CSIPluginConfig) GetInt32(key string) (int32, bool) {
 	value := c.viper.GetInt32(key)
 	return value, c.viper.IsSet(key)
 }
+
+func (c *CSIPluginConfig) OverrideVal(key string, value any) {
+	c.viper.Set(key, value)
+}

@@ -20,10 +20,13 @@ import (
 
 	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"k8s.io/mount-utils"
+	"k8s.io/utils/exec"
 )
 
 const (
-	DefaultDriverName = "csi.opennebula.io" //TODO: get from a repo metadata file or from a build flag
+	DefaultDriverName         = "csi.opennebula.io" //TODO: get from a repo metadata file or from a build flag
+	DefaultGRPCServerEndpoint = "unix:///tmp/csi.sock"
 )
 
 var (
@@ -41,10 +44,7 @@ type Driver struct {
 	nodeID             string
 	version            string
 
-	PluginConfig     config.CSIPluginConfig
-	identityServer   *IdentityServer
-	nodeServer       *NodeServer
-	controllerServer *ControllerServer
+	PluginConfig config.CSIPluginConfig
 
 	nodeServerCapabilities       []*csi.NodeServiceCapability
 	controllerServerCapabilities []*csi.ControllerServiceCapability
@@ -74,16 +74,19 @@ func NewDriver(options *DriverOptions) *Driver {
 func (d *Driver) Run() {
 	//TODO: Show driver metadata
 
-	d.identityServer = NewIdentityServer(d)
-	d.nodeServer = NewNodeServer(d)
-	d.controllerServer = NewControllerServer(d)
-
 	grpcServer := NewGRPCServer()
+
+	mounter := mount.NewSafeFormatAndMount(
+		mount.New(""), // using default linux mounter implementation
+		exec.New(),
+	)
+
 	grpcServer.Start(
 		d.grpcServerEndpoint,
-		d.identityServer,
-		d.nodeServer,
-		d.controllerServer,
+		NewIdentityServer(d),
+		NewNodeServer(d, mounter),
+		NewControllerServer(d),
 	)
+
 	grpcServer.Wait()
 }

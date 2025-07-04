@@ -27,7 +27,7 @@ import (
 
 var (
 	driverName     = flag.String("drivername", driver.DefaultDriverName, "CSI driver name")
-	pluginEndpoint = flag.String("endpoint", "unix:///tmp/csi.sock", "CSI plugin endpoint")
+	pluginEndpoint = flag.String("endpoint", driver.DefaultGRPCServerEndpoint, "CSI plugin endpoint")
 	nodeID         = flag.String("nodeid", "", "Node ID")
 )
 

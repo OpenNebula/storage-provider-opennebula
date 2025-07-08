@@ -27,6 +27,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"k8s.io/klog/v2"
 )
 
@@ -91,6 +92,10 @@ func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeSe
 
 	if controllerServer != nil {
 		csi.RegisterControllerServer(s.server, controllerServer)
+	}
+
+	if s.server != nil {
+		reflection.Register(s.server)
 	}
 
 	klog.Infof("Starting GRPC server on %s ...", address)

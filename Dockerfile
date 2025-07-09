@@ -1,5 +1,23 @@
+# Copyright 2025, OpenNebula Project, OpenNebula Systems.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+##
+# Builder
+##
+
 # Build the manager binary
-FROM --platform=$BUILDPLATFORM golang:1.22 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.22 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -23,11 +41,33 @@ COPY pkg/ pkg/
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
     go build -a -o opennebula-cloud-controller-manager cmd/opennebula-cloud-controller-manager/main.go
 
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -a -o opennebula-csi-plugin cmd/opennebula-csi-plugin/main.go
+
+###
+# TARGET IMAGES
+###
+
+##
+# Cloud Controller Manager image
+##
+
+FROM gcr.io/distroless/static:nonroot AS cloud-provider-opennebula
 WORKDIR /
 COPY --from=builder /workspace/opennebula-cloud-controller-manager .
+# Use a non-root user to run the container
 USER 65532:65532
 
 ENTRYPOINT ["/opennebula-cloud-controller-manager"]
+
+##
+# CSI Plugin image
+##
+
+FROM gcr.io/distroless/static:nonroot AS opennebula-csi-plugin
+WORKDIR /
+COPY --from=builder /workspace/opennebula-csi-plugin .
+# Use a non-root user to run the container
+USER 65532:65532
+
+ENTRYPOINT ["/opennebula-csi-plugin"]

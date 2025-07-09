@@ -27,17 +27,23 @@ KUSTOMIZE := $(SELF)/bin/kustomize
 
 CLOSEST_TAG ?= $(shell git -C $(SELF) describe --tags --abbrev=0)
 
-# Local image URL used for building/pushing image targets
-CCM_IMG ?= localhost:5005/cloud-provider-opennebula:latest
-
-# Image URL to use for building/pushing image targets
-IMG_URL ?= ghcr.io/opennebula/cloud-provider-opennebula
+# Local registry and tag used for building/pushing image targets
+LOCAL_TAG ?= latest
+LOCAL_REGISTRY ?= localhost:5005
+# Registry to use for building/pushing image targets
+REMOTE_REGISTRY ?= ghcr.io/opennebula
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
 # scaffolded by default. However, you might want to replace it to use other
 # tools. (i.e. podman)
 CONTAINER_TOOL ?= docker
+
+# Binaries to build
+BUILD_BINS := opennebula-cloud-controller-manager opennebula-csi-plugin
+# List of container image names to build and push
+IMAGE_NAMES := cloud-provider-opennebula opennebula-csi-plugin
+
 
 -include .env
 export
@@ -66,14 +72,20 @@ test:
 
 .PHONY: build docker-build docker-push docker-release
 
-build: fmt vet
-	go build -o bin/opennebula-cloud-controller-manager cmd/opennebula-cloud-controller-manager/main.go
+build: fmt vet $(addprefix build-,$(BUILD_BINS))
 
-docker-build:
-	$(CONTAINER_TOOL) build -t $(CCM_IMG) .
+build-%:
+	go build -o $(SELF)/bin/$* ./cmd/$*/main.go
 
-docker-push: docker-build
-	$(CONTAINER_TOOL) push $(CCM_IMG)
+docker-build: $(addprefix docker-build-,$(IMAGE_NAMES))
+
+docker-build-%:
+	$(CONTAINER_TOOL) build -t $(LOCAL_REGISTRY)/$*:$(LOCAL_TAG) .
+
+docker-push: $(addprefix docker-push-,$(IMAGE_NAMES))
+
+docker-push-%:
+	$(CONTAINER_TOOL) push $(LOCAL_REGISTRY)/$*:$(LOCAL_TAG)
 
 # _PLATFORMS defines the target platforms for the manager image be built to provide support to multiple architectures.
 # To use this option you need to:
@@ -82,11 +94,42 @@ docker-push: docker-build
 # - be able to push the image to your registry
 _PLATFORMS ?= linux/amd64,linux/arm64
 
-docker-release:
-	-$(CONTAINER_TOOL) buildx create --name cloud-provider-opennebula-builder
-	$(CONTAINER_TOOL) buildx use cloud-provider-opennebula-builder
-	$(CONTAINER_TOOL) buildx build --push --platform=$(_PLATFORMS) -t $(IMG_URL):$(CLOSEST_TAG) -t $(IMG_URL):latest -f Dockerfile .
-	-$(CONTAINER_TOOL) buildx rm cloud-provider-opennebula-builder
+docker-release: $(addprefix docker-release-,$(IMAGE_NAMES))
+
+docker-release-%:
+	-$(CONTAINER_TOOL) buildx create --name $*-builder
+	$(CONTAINER_TOOL) buildx use $*-builder
+	$(CONTAINER_TOOL) buildx build --push --platform=$(_PLATFORMS) -t $(REMOTE_REGISTRY)/$*:$(CLOSEST_TAG) -t $(REMOTE_REGISTRY)/$*:latest -f Dockerfile .
+	-$(CONTAINER_TOOL) buildx rm $*-builder
+
+# Helm
+
+.PHONY: charts
+
+define chart-generator-tool
+charts: $(CHARTS_DIR)/$(CLOSEST_TAG)/$(1)-$(subst v,,$(CLOSEST_TAG)).tgz
+
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1)-$(subst v,,$(CLOSEST_TAG)).tgz: $(CHARTS_DIR)/$(CLOSEST_TAG)/$(1) $(HELM)
+	$(HELM) package -d $(CHARTS_DIR)/$(CLOSEST_TAG) $(CHARTS_DIR)/$(CLOSEST_TAG)/$(1)
+
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1):              CCM_IMG := {{ tpl .Values.CCM_IMG . }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1):              CCM_CTL := {{ .Values.CCM_CTL }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1):         CLUSTER_NAME := {{ .Values.CLUSTER_NAME }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1):        NODE_SELECTOR := {{ (toYaml .Values.nodeSelector) | nindent 8 }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1):             ONE_AUTH := {{ .Values.ONE_AUTH }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1):           ONE_XMLRPC := {{ .Values.ONE_XMLRPC }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1): PRIVATE_NETWORK_NAME := {{ .Values.PRIVATE_NETWORK_NAME }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1):  PUBLIC_NETWORK_NAME := {{ .Values.PUBLIC_NETWORK_NAME }}
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1): ROUTER_TEMPLATE_NAME := {{ tpl .Values.ROUTER_TEMPLATE_NAME . }}
+
+$(CHARTS_DIR)/$(CLOSEST_TAG)/$(1): $(KUSTOMIZE) $(ENVSUBST)
+	install -m u=rwx,go=rx -d $(CHARTS_DIR)/$(CLOSEST_TAG)/$(1)
+	cp -rf helm/$(1) $(CHARTS_DIR)/$(CLOSEST_TAG)/.
+	$(KUSTOMIZE) build kustomize/$(2) | $(ENVSUBST) \
+	| install -m u=rw,go=r -D /dev/fd/0 $(CHARTS_DIR)/$(CLOSEST_TAG)/$(1)/templates/opennebula-cpi.yaml
+endef
+
+$(eval $(call chart-generator-tool,opennebula-cpi,base))
 
 # Helm
 

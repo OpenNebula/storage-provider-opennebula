@@ -36,8 +36,15 @@ type OpenNebulaProvider struct {
 }
 
 type OpenNebulaVolumeProvider interface {
-	CreateVolume(ctx context.Context, name string, size int) (int, error)
-	DeleteVolume(ctx context.Context, id string) error
+	CreateVolume(ctx context.Context, name string, size int64, owner string) (int, error)
+	DeleteVolume(ctx context.Context, volume string) error
+	AttachVolume(ctx context.Context, volume string, node string) error
+	DetachVolume(ctx context.Context, volume string, node string) error
+	ListVolumes(ctx context.Context, volume string) ([]string, error)
+	GetCapacity(ctx context.Context) (int64, error)
+	DuplicatedVolume(ctx context.Context, volume string) (int, int, error)
+	VolumeExists(ctx context.Context, volume int) bool
+	NodeExists(ctx context.Context, node string) bool
 }
 
 func NewClient(config OpenNebulaConfig) *OpenNebulaClient {

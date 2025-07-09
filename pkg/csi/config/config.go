@@ -62,7 +62,7 @@ func initViper() *viper.Viper {
 		klog.Warningf("Config file changed: %s", e.Name)
 	})
 
-	viper.SetDefault("ONE_XMLRPC", defaultOpenNebulaRPCEndpoint)
+	viper.SetDefault(OpenNebulaRPCEndpointVar, defaultOpenNebulaRPCEndpoint)
 
 	viper.AutomaticEnv()
 	viper.SetTypeByDefaultValue(true)

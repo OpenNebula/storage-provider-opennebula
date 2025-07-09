@@ -17,9 +17,8 @@ func TestDriver(t *testing.T) {
 	grpcEndpoint := "unix://" + socket
 
 	csiPluginConfig := config.LoadConfiguration()
-	csiPluginConfig.OverrideVal("ONE_XMLRPC", "http://localhost:2633/RPC2")
-	csiPluginConfig.OverrideVal("ONE_AUTH", "oneadmin:opennebula")
-
+	csiPluginConfig.OverrideVal(config.OpenNebulaRPCEndpointVar, "http://localhost:2633/RPC2")
+	csiPluginConfig.OverrideVal(config.OpenNebulaCredentialsVar, "oneadmin:opennebula")
 	driverOptions := &DriverOptions{
 		DriverName:         "csi.opennebula.io",
 		NodeID:             "test-node",
@@ -31,7 +30,8 @@ func TestDriver(t *testing.T) {
 	if driver == nil {
 		t.Fatalf("Failed to create driver")
 	}
-	driver.Run()
+
+	go driver.Run()
 
 	config := sanity.NewTestConfig()
 	config.Address = grpcEndpoint

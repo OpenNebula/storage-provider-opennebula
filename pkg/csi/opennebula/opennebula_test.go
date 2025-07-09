@@ -20,16 +20,20 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
 )
 
 func TestOpenNebulaClientProbe(t *testing.T) {
 	cfg := OpenNebulaConfig{
-		Endpoint:    os.Getenv("ONE_XMLRPC"),
-		Credentials: os.Getenv("ONE_AUTH"),
+		Endpoint:    os.Getenv(config.OpenNebulaRPCEndpointVar),
+		Credentials: os.Getenv(config.OpenNebulaCredentialsVar),
 	}
 
 	if cfg.Endpoint == "" || cfg.Credentials == "" {
-		t.Skip("ONE_XMLRPC or ONE_AUTH not set, skipping integration test")
+		t.Skipf("%s or %s not set, skipping integration test",
+			config.OpenNebulaRPCEndpointVar,
+			config.OpenNebulaCredentialsVar)
 	}
 
 	client := NewClient(cfg)

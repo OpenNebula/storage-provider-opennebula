@@ -26,9 +26,10 @@ import (
 )
 
 var (
-	driverName     = flag.String("drivername", driver.DefaultDriverName, "CSI driver name")
-	pluginEndpoint = flag.String("endpoint", driver.DefaultGRPCServerEndpoint, "CSI plugin endpoint")
-	nodeID         = flag.String("nodeid", "", "Node ID")
+	driverName        = flag.String("drivername", driver.DefaultDriverName, "CSI driver name")
+	pluginEndpoint    = flag.String("endpoint", driver.DefaultGRPCServerEndpoint, "CSI plugin endpoint")
+	nodeID            = flag.String("nodeid", "", "Node ID")
+	maxVolumesPerNode = flag.Uint64("maxVolumesPerNode", 255, "Maximum number of volumes that can be attached to a node")
 )
 
 func main() {

@@ -49,15 +49,17 @@ type Driver struct {
 
 	PluginConfig config.CSIPluginConfig
 
-	nodeServerCapabilities       []*csi.NodeServiceCapability
 	controllerServerCapabilities []*csi.ControllerServiceCapability
 
 	volumeLocks *VolumeLocks
+
+	maxVolumesPerNode int64
 }
 
 type DriverOptions struct {
 	NodeID             string
 	DriverName         string
+	MaxVolumesPerNode  int64
 	GRPCServerEndpoint string
 	PluginConfig       config.CSIPluginConfig
 }

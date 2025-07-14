@@ -97,7 +97,7 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
-	volumeContext := req.GetVolumeContext()
+	volumeContext := req.GetPublishContext()
 	volName := volumeContext["volumeName"]
 	if len(volName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "[volumeName] entry is required in volume context")

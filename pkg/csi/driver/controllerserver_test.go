@@ -77,16 +77,16 @@ func TestCreateVolume(t *testing.T) {
 			},
 			expectResponse: &csi.CreateVolumeResponse{
 				Volume: &csi.Volume{
-					VolumeId:      "1",
+					VolumeId:      "test-volume",
 					CapacityBytes: volumeSize,
 				},
 			},
 			expectError: false,
 			setupMock: func(m *MockOpenNebulaVolumeProviderTestify) {
-				m.On("DuplicatedVolume", mock.Anything, "test-volume").
-					Return(-1, 0, nil)
+				m.On("VolumeExists", mock.Anything, "test-volume").
+					Return(-1, -1, nil)
 				m.On("CreateVolume", mock.Anything, "test-volume", volumeSize, mock.Anything).
-					Return(1, nil)
+					Return(nil)
 			},
 		},
 		{
@@ -227,8 +227,8 @@ func TestControllerPublishVolume(t *testing.T) {
 				},
 			},
 			setupMock: func(m *MockOpenNebulaVolumeProviderTestify) {
-				m.On("VolumeExists", mock.Anything, 1234).Return(true)
-				m.On("NodeExists", mock.Anything, "test-node-id").Return(true)
+				m.On("VolumeExists", mock.Anything, "1234").Return(1, 1, nil)
+				m.On("NodeExists", mock.Anything, "test-node-id").Return(1, nil)
 				m.On("AttachVolume", mock.Anything, "1234", "test-node-id").Return(nil)
 			},
 			expectResponse: &csi.ControllerPublishVolumeResponse{},
@@ -431,9 +431,9 @@ type MockOpenNebulaVolumeProviderTestify struct {
 	mock.Mock
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) CreateVolume(ctx context.Context, name string, size int64, owner string) (int, error) {
+func (m *MockOpenNebulaVolumeProviderTestify) CreateVolume(ctx context.Context, name string, size int64, owner string) error {
 	args := m.Called(ctx, name, size, owner)
-	return args.Int(0), args.Error(1)
+	return args.Error(0)
 }
 
 func (m *MockOpenNebulaVolumeProviderTestify) DeleteVolume(ctx context.Context, volume string) error {
@@ -461,17 +461,17 @@ func (m *MockOpenNebulaVolumeProviderTestify) GetCapacity(ctx context.Context) (
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) DuplicatedVolume(ctx context.Context, volume string) (int, int, error) {
+func (m *MockOpenNebulaVolumeProviderTestify) VolumeExists(ctx context.Context, volume string) (int, int, error) {
 	args := m.Called(ctx, volume)
-	return args.Int(0), args.Int(1), args.Error(2)
+	return args.Get(0).(int), args.Get(1).(int), args.Error(2)
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) VolumeExists(ctx context.Context, volume int) bool {
-	args := m.Called(ctx, volume)
-	return args.Bool(0)
-}
-
-func (m *MockOpenNebulaVolumeProviderTestify) NodeExists(ctx context.Context, node string) bool {
+func (m *MockOpenNebulaVolumeProviderTestify) NodeExists(ctx context.Context, node string) (int, error) {
 	args := m.Called(ctx, node)
-	return args.Bool(0)
+	return args.Get(0).(int), args.Error(1)
+}
+
+func (m *MockOpenNebulaVolumeProviderTestify) GetVolumeInNode(ctx context.Context, volumeID int, nodeID int) (string, error) {
+	args := m.Called(ctx, volumeID, nodeID)
+	return args.Get(0).(string), args.Error(1)
 }

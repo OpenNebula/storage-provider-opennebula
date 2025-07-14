@@ -64,35 +64,32 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		requiredBytes = DefaultVolumeSizeBytes
 	}
 
-	duplicatedID, duplicatedSize, err := s.volumeProvider.DuplicatedVolume(ctx, req.Name)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to check for duplicated volume")
-	}
+	volumeID, volumeSize, _ := s.volumeProvider.VolumeExists(ctx, req.Name)
 
-	if duplicatedID != -1 {
-		if int64(duplicatedSize) == requiredBytes {
+	if volumeID != -1 {
+		if int64(volumeSize) == requiredBytes {
 			return &csi.CreateVolumeResponse{
 				Volume: &csi.Volume{
-					VolumeId:      strconv.Itoa(duplicatedID),
+					VolumeId:      req.Name,
 					CapacityBytes: requiredBytes,
 				},
 			}, nil
 		} else {
-			return nil, status.Error(codes.AlreadyExists, "volume with the same name already exists with different size")
+			return nil, status.Error(codes.AlreadyExists,
+				"volume with the same name already exists with different size")
 		}
 
 	}
 
-	volumeID, err := s.volumeProvider.CreateVolume(ctx, req.Name, requiredBytes, DefaultDriverName)
+	err := s.volumeProvider.CreateVolume(ctx, req.Name, requiredBytes, DefaultDriverName)
 	if err != nil {
 		klog.Errorf("Failed to create volume: %v", err)
 		return nil, status.Error(codes.Internal, "failed to create volume")
 	}
 
-	// TODO: ADD VolumeContext
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      strconv.Itoa(volumeID),
+			VolumeId:      req.Name,
 			CapacityBytes: requiredBytes,
 		},
 	}, nil
@@ -127,12 +124,13 @@ func (s *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi
 		return nil, status.Error(codes.InvalidArgument, "missing volume capability")
 	}
 
-	volumeID, err := strconv.Atoi(req.VolumeId)
-	if err != nil || !s.volumeProvider.VolumeExists(ctx, volumeID) {
+	volumeID, _, err := s.volumeProvider.VolumeExists(ctx, req.VolumeId)
+	if err != nil || volumeID == -1 {
 		return nil, status.Error(codes.NotFound, "volume not found")
 	}
 
-	if !s.volumeProvider.NodeExists(ctx, req.NodeId) {
+	nodeID, err := s.volumeProvider.NodeExists(ctx, req.NodeId)
+	if err != nil || nodeID == -1 {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
 
@@ -141,7 +139,17 @@ func (s *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to attach volume")
 	}
-	return &csi.ControllerPublishVolumeResponse{}, nil
+
+	target, err := s.volumeProvider.GetVolumeInNode(ctx, volumeID, nodeID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to get volume in node")
+	}
+
+	return &csi.ControllerPublishVolumeResponse{
+		PublishContext: map[string]string{
+			"volumeName": target,
+		},
+	}, nil
 }
 
 func (s *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
@@ -170,8 +178,8 @@ func (s *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *
 		return nil, status.Error(codes.InvalidArgument, "missing volume capabilities")
 	}
 
-	volumeID, err := strconv.Atoi(req.VolumeId)
-	if err != nil || !s.volumeProvider.VolumeExists(ctx, volumeID) {
+	volumeID, _, err := s.volumeProvider.VolumeExists(ctx, req.VolumeId)
+	if err != nil || volumeID == -1 {
 		return nil, status.Error(codes.NotFound, "volume not found")
 	}
 	supportedModes := map[csi.VolumeCapability_AccessMode_Mode]bool{

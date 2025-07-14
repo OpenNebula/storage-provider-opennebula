@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/OpenNebula/one/src/oca/go/src/goca"
 	"github.com/OpenNebula/one/src/oca/go/src/goca/schemas/image"
@@ -32,6 +33,7 @@ import (
 const (
 	owner_tag       = "OWNER"
 	size_conversion = 1024 * 1024
+	timeout         = 5 * time.Second
 )
 
 type PersistentDiskVolumeProvider struct {
@@ -42,22 +44,24 @@ func NewPersistentDiskVolumeProvider(client *OpenNebulaClient) (*PersistentDiskV
 	if client == nil {
 		return nil, fmt.Errorf("client reference is nil")
 	}
-	return &PersistentDiskVolumeProvider{ctrl: goca.NewController(client.Client)}, nil
+	return &PersistentDiskVolumeProvider{
+		ctrl: goca.NewController(client.Client),
+	}, nil
 }
 
-func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name string, size int64, owner string) (int, error) {
+func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name string, size int64, owner string) error {
 	if name == "" {
-		return -1, fmt.Errorf("volume name cannot be empty")
+		return fmt.Errorf("volume name cannot be empty")
 	}
 
 	if size <= 0 {
-		return -1, fmt.Errorf("invalid volume size: must be greater than 0")
+		return fmt.Errorf("invalid volume size: must be greater than 0")
 	}
 
 	// size is in bytes and we need it in MB
 	sizeMB := size / size_conversion
 	if sizeMB <= 0 {
-		return -1, fmt.Errorf("invalid volume size: must be greater than 0 MB")
+		return fmt.Errorf("invalid volume size: must be greater than 0 MB")
 	}
 
 	tpl := img.NewTemplate()
@@ -67,73 +71,76 @@ func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name st
 	tpl.AddPair(owner_tag, owner)
 	tpl.Add(imk.Type, string(image.Datablock))
 
-	volumeID, err := p.ctrl.Images().Create(tpl.String(), 1)
+	imageID, err := p.ctrl.Images().Create(tpl.String(), 1)
 	if err != nil {
-		return -1, fmt.Errorf("failed to create volume: %w", err)
+		return fmt.Errorf("failed to create volume: %w", err)
 	}
-	return volumeID, nil
+
+	err = p.waitForResourceReady(imageID, timeout, p.volumeReady)
+	if err != nil {
+		return fmt.Errorf("failed to wait for volume readiness: %w", err)
+	}
+	return nil
 }
 
 func (p *PersistentDiskVolumeProvider) DeleteVolume(ctx context.Context, volume string) error {
-	id, err := strconv.Atoi(volume)
-	if err != nil || !p.VolumeExists(ctx, id) {
+	volumeID, _, err := p.VolumeExists(ctx, volume)
+	if err != nil || volumeID == -1 {
 		return nil
 	}
 
-	image, err := p.ctrl.Image(id).Info(true)
+	image, err := p.ctrl.Image(volumeID).Info(true)
 	if err == nil {
 		state, err := image.State()
 		if err == nil && state == img.Used {
-			return fmt.Errorf("cannot delete volume %s, it is currently in use", volume)
+			return fmt.Errorf("cannot delete volume %s, it is currently in use",
+				volume)
 		}
 	}
 
 	// Force delete
-	p.ctrl.Client.CallContext(ctx, "one.image.delete", id, true)
+	p.ctrl.Client.CallContext(ctx, "one.image.delete", volumeID, true)
+	err = p.waitForResourceReady(volumeID, timeout, p.volumeDeleted)
+	if err != nil {
+		return fmt.Errorf("failed to wait for volume deletion: %w", err)
+	}
 	return nil
 }
 
-func (p *PersistentDiskVolumeProvider) AttachVolume(ctx context.Context, volume string, node string) error {
-	if volume == "" {
-		return fmt.Errorf("invalid volume format")
+func (p *PersistentDiskVolumeProvider) AttachVolume(ctx context.Context, volume, node string) error {
+	nodeID, err := p.NodeExists(ctx, node)
+	if err != nil || nodeID == -1 {
+		return fmt.Errorf("failed to check if node exists: %w", err)
 	}
 
-	if node == "" {
-		return fmt.Errorf("invalid node format")
+	volumeID, _, err := p.VolumeExists(ctx, volume)
+	if err != nil || volumeID == -1 {
+		return fmt.Errorf("failed to check if volume exists: %w", err)
 	}
-
-	volumeID, err := strconv.Atoi(volume)
-	if err != nil {
-		return fmt.Errorf("invalid volume ID format: %w", err)
-	}
-
-	nodeID, err := strconv.Atoi(node)
-	if err != nil {
-		return fmt.Errorf("invalid node ID format: %w", err)
-	}
-
 	disk := shared.NewDisk()
 	disk.Add(shared.ImageID, volumeID)
 
 	err = p.ctrl.VM(nodeID).DiskAttach(disk.String())
 	if err != nil {
-		return fmt.Errorf("failed to attach volume %s to node %s: %w", volume, node, err)
+		return fmt.Errorf("failed to attach volume %s to node %s: %w",
+			volume, node, err)
+	}
+	err = p.waitForResourceReady(nodeID, timeout, p.nodeReady)
+	if err != nil {
+		return fmt.Errorf("failed to wait for node readiness: %w", err)
 	}
 	return nil
 }
 
-func (p *PersistentDiskVolumeProvider) DetachVolume(ctx context.Context, volume string, node string) error {
-	if volume == "" {
-		return fmt.Errorf("invalid volume format")
+func (p *PersistentDiskVolumeProvider) DetachVolume(ctx context.Context, volume, node string) error {
+	nodeID, err := p.NodeExists(ctx, node)
+	if err != nil || nodeID == -1 {
+		return fmt.Errorf("failed to check if node exists: %w", err)
 	}
 
-	if node == "" {
-		return fmt.Errorf("invalid node format")
-	}
-
-	nodeID, err := strconv.Atoi(node)
-	if err != nil {
-		return fmt.Errorf("invalid node ID format: %w", err)
+	volumeID, _, err := p.VolumeExists(ctx, volume)
+	if err != nil || volumeID == -1 {
+		return fmt.Errorf("failed to check if volume exists: %w", err)
 	}
 
 	vmController := p.ctrl.VM(nodeID)
@@ -143,11 +150,13 @@ func (p *PersistentDiskVolumeProvider) DetachVolume(ctx context.Context, volume 
 	}
 
 	for _, disk := range vmInfo.Template.GetDisks() {
-		diskImageID, err := disk.Get(shared.ImageID)
-		if err == nil && diskImageID == volume {
+		diskImageID, err := disk.GetI(shared.ImageID)
+		if err == nil && diskImageID == volumeID {
 			diskID, err := disk.Get(shared.DiskID)
 			if err != nil {
-				return fmt.Errorf("failed to get disk ID from volume %s on node %s: %w", volume, node, err)
+				return fmt.Errorf(
+					"failed to get disk ID from volume %s on node %s: %w",
+					volume, node, err)
 			}
 			diskIDInt, err := strconv.Atoi(diskID)
 			if err != nil {
@@ -155,7 +164,12 @@ func (p *PersistentDiskVolumeProvider) DetachVolume(ctx context.Context, volume 
 			}
 			err = vmController.Disk(diskIDInt).Detach()
 			if err != nil {
-				return fmt.Errorf("failed to detach volume %s from node %s: %w", diskID, node, err)
+				return fmt.Errorf("failed to detach volume %s from node %s: %w",
+					diskID, node, err)
+			}
+			err = p.waitForResourceReady(nodeID, timeout, p.nodeReady)
+			if err != nil {
+				return fmt.Errorf("failed to wait for node readiness: %w", err)
 			}
 			return nil
 		}
@@ -172,7 +186,7 @@ func (p *PersistentDiskVolumeProvider) ListVolumes(ctx context.Context, owner st
 	for _, img := range images.Images {
 		imageOwner, err := img.Template.Get(owner_tag)
 		if err == nil && imageOwner == owner {
-			volumeIDs = append(volumeIDs, strconv.Itoa(img.ID))
+			volumeIDs = append(volumeIDs, img.Name)
 		}
 	}
 	return volumeIDs, nil
@@ -191,15 +205,29 @@ func (p *PersistentDiskVolumeProvider) GetCapacity(ctx context.Context) (int64, 
 	return 0, fmt.Errorf("default datastore not found")
 }
 
-func (p *PersistentDiskVolumeProvider) VolumeReady(volume string) (bool, error) {
-	if volume == "" {
-		return false, fmt.Errorf("invalid volume format")
-	}
-	id, err := strconv.Atoi(volume)
+func (p *PersistentDiskVolumeProvider) VolumeExists(ctx context.Context, volume string) (int, int, error) {
+	imgID, err := p.ctrl.Images().ByName(volume)
 	if err != nil {
-		return false, fmt.Errorf("invalid volume ID format: %w", err)
+		return -1, -1, fmt.Errorf("failed to get volume by name: %w", err)
 	}
-	image, err := p.ctrl.Image(id).Info(true)
+	img, err := p.ctrl.Image(imgID).Info(true)
+	if err != nil {
+		return -1, -1, fmt.Errorf("failed to get volume info: %w", err)
+	}
+	return imgID, (img.Size * size_conversion), nil
+}
+
+func (p *PersistentDiskVolumeProvider) NodeExists(ctx context.Context, node string) (int, error) {
+	vmID, err := p.ctrl.VMs().ByName(node)
+	if err != nil {
+		return -1, fmt.Errorf("Failed to fetch VM: %w", err)
+	}
+
+	return vmID, nil
+}
+
+func (p *PersistentDiskVolumeProvider) volumeReady(volumeID int) (bool, error) {
+	image, err := p.ctrl.Image(volumeID).Info(true)
 	if err != nil {
 		return false, fmt.Errorf("failed to get Disk info: %w", err)
 	}
@@ -212,16 +240,16 @@ func (p *PersistentDiskVolumeProvider) VolumeReady(volume string) (bool, error) 
 	return state == img.Ready || state == img.Used, nil
 }
 
-func (p *PersistentDiskVolumeProvider) NodeReady(node string) (bool, error) {
-	if node == "" {
-		return false, fmt.Errorf("invalid node format")
-	}
-	id, err := strconv.Atoi(node)
+func (p *PersistentDiskVolumeProvider) volumeDeleted(volumeID int) (bool, error) {
+	_, err := p.ctrl.Image(volumeID).Info(true)
 	if err != nil {
-		return false, fmt.Errorf("invalid node ID format: %w", err)
+		return true, nil
 	}
+	return false, fmt.Errorf("volume %d still exists: %w", volumeID, err)
+}
 
-	vmInfo, err := p.ctrl.VM(id).Info(true)
+func (p *PersistentDiskVolumeProvider) nodeReady(nodeID int) (bool, error) {
+	vmInfo, err := p.ctrl.VM(nodeID).Info(true)
 	if err != nil {
 		return false, fmt.Errorf("failed to get VM info: %w", err)
 	}
@@ -233,30 +261,49 @@ func (p *PersistentDiskVolumeProvider) NodeReady(node string) (bool, error) {
 	return vmLCMState == vm.Running, nil
 }
 
-func (p *PersistentDiskVolumeProvider) DuplicatedVolume(ctx context.Context, volume string) (int, int, error) {
-	images, err := p.ctrl.Images().Info()
-	if err != nil {
-		return -1, -1, fmt.Errorf("failed to list volumes: %w", err)
-	}
-	for _, img := range images.Images {
-		if img.Name == volume {
-			sizeBytes := img.Size * size_conversion
-			return img.ID, sizeBytes, nil
+func (p *PersistentDiskVolumeProvider) waitForResourceReady(volumeID int, timeout time.Duration, checkFunc func(int) (bool, error)) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for volume %d to be ready", volumeID)
+		case <-ticker.C:
+			ready, err := checkFunc(volumeID)
+			if err != nil {
+				return fmt.Errorf("error checking volume readiness: %w", err)
+			}
+			if ready {
+				return nil
+			}
 		}
 	}
-	return -1, -1, nil
 }
 
-func (p *PersistentDiskVolumeProvider) VolumeExists(ctx context.Context, volume int) bool {
-	_, err := p.ctrl.Image(volume).Info(true)
-	return err == nil
-}
-
-func (p *PersistentDiskVolumeProvider) NodeExists(ctx context.Context, node string) bool {
-	id, err := strconv.Atoi(node)
+func (p *PersistentDiskVolumeProvider) GetVolumeInNode(ctx context.Context, volumeID int, nodeID int) (string, error) {
+	vmInfo, err := p.ctrl.VM(nodeID).Info(true)
 	if err != nil {
-		return false
+		return "", fmt.Errorf("failed to get VM info: %w", err)
 	}
-	_, err = p.ctrl.VM(id).Info(true)
-	return err == nil
+
+	for _, disk := range vmInfo.Template.GetDisks() {
+		diskImageID, err := disk.GetI(shared.ImageID)
+		if err != nil {
+			continue
+		}
+		if diskImageID == volumeID {
+			target, err := disk.Get("TARGET")
+			if err != nil {
+				return "", fmt.Errorf(
+					"failed to get target for volume %d on node %d: %w",
+					volumeID, nodeID, err)
+			}
+			return target, nil
+		}
+	}
+	return "", fmt.Errorf("volume %d not found on node %d", volumeID, nodeID)
 }

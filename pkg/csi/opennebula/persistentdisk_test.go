@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -64,30 +63,14 @@ func TestPersistentDiskLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	volumeTestName := fmt.Sprintf("%s-%s", volumeName, uuid.New().String())
-	volumeID, err := volumeProvider.CreateVolume(ctx, volumeTestName, volumeSize, testDriverName)
+	err = volumeProvider.CreateVolume(ctx, volumeTestName, volumeSize, testDriverName)
 	if err != nil {
 		t.Fatalf("failed to create volume: %v", err)
 	}
-	if volumeID == -1 {
-		t.Fatal("created volume ID is invalid")
-	}
-	t.Logf("volume created successfully: %d", volumeID)
+	t.Logf("volume created successfully: %s", volumeTestName)
 
-	var ready bool
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ready, err = volumeProvider.VolumeReady(strconv.Itoa(volumeID))
-		if err != nil {
-			t.Fatalf("error checking if volume %d is ready: %v", volumeID, err)
-		}
-		if ready {
-			break
-		}
-		time.Sleep(retryDelay)
-	}
-
-	if !ready {
-		t.Fatalf("volume %d is not ready after %d attempts", volumeID, maxRetries)
-	}
+	// Sleep to allow the volume to be ready
+	time.Sleep(5 * time.Second)
 
 	volumes, err := volumeProvider.ListVolumes(ctx, testDriverName)
 	if err != nil {
@@ -105,56 +88,9 @@ func TestPersistentDiskLifecycle(t *testing.T) {
 	}
 	t.Logf("datastore size: %d", dataStoreSize)
 
-	// TODO: CREATE VM
-	// volumeProvider.AttachVolume(ctx, strconv.Itoa(volumeID), strconv.Itoa(2986))
-
-	// ready, err = waitNodeReady(t, volumeProvider, strconv.Itoa(2986))
-	// if err != nil {
-	// 	t.Fatalf("error checking if node is ready: %v", err)
-	// }
-
-	// if !ready {
-	// 	t.Fatalf("node %d is not ready after %d attempts", volumeID, maxRetries)
-	// }
-
-	// t.Logf("volume %d attached successfully", volumeID)
-
-	// err = volumeProvider.DetachVolume(ctx, strconv.Itoa(volumeID), strconv.Itoa(2986))
-	// if err != nil {
-	// 	t.Fatalf("failed to detach volume %d: %v", volumeID, err)
-	// }
-
-	// ready, err = waitNodeReady(t, volumeProvider, strconv.Itoa(2986))
-	// if err != nil {
-	// 	t.Fatalf("error checking if node is ready: %v", err)
-	// }
-
-	// if !ready {
-	// 	t.Fatalf("node %d is not ready after %d attempts", volumeID, maxRetries)
-	// }
-
-	// t.Logf("volume %d detached successfully", volumeID)
-
-	err = volumeProvider.DeleteVolume(ctx, strconv.Itoa(volumeID))
+	err = volumeProvider.DeleteVolume(ctx, volumeTestName)
 	if err != nil {
-		t.Fatalf("failed to delete volume %d: %v", volumeID, err)
+		t.Fatalf("failed to delete volume %s: %v", volumeTestName, err)
 	}
-	t.Logf("volume %d deleted successfully", volumeID)
-}
-
-func waitNodeReady(t *testing.T, volumeProvider *PersistentDiskVolumeProvider, nodeID string) (bool, error) {
-	var ready bool
-	var err error
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ready, err = volumeProvider.NodeReady(nodeID)
-		if err != nil {
-			t.Fatalf("error checking if node %s is ready: %v", nodeID, err)
-		}
-		if ready {
-			break
-		}
-		time.Sleep(retryDelay)
-	}
-
-	return ready, nil
+	t.Logf("volume %s deleted successfully", volumeTestName)
 }

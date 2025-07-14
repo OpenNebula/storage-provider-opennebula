@@ -2,7 +2,7 @@ module github.com/OpenNebula/cloud-provider-opennebula
 
 go 1.24.0
 
-toolchain go1.24.4
+toolchain go1.24.5
 
 require (
 	github.com/OpenNebula/one/src/oca/go/src/goca v0.0.0-20241029141545-0bd451171fb6
@@ -12,15 +12,16 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/kubernetes-csi/csi-lib-utils v0.22.0
 	github.com/kubernetes-csi/csi-test/v5 v5.3.1
+	github.com/rs/zerolog v1.34.0
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.69.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.33.1
-	k8s.io/apimachinery v0.33.1
+	k8s.io/api v0.33.2
+	k8s.io/apimachinery v0.33.2
 	k8s.io/cloud-provider v0.31.2
-	k8s.io/component-base v0.33.1
+	k8s.io/component-base v0.33.2
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/mount-utils v0.33.2
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
@@ -67,6 +68,8 @@ require (
 	github.com/kolo/xmlrpc v0.0.0-20190717152603-07c4ee3fd181 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -122,7 +125,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apiserver v0.31.2 // indirect
-	k8s.io/client-go v0.33.1 // indirect
+	k8s.io/client-go v0.33.2 // indirect
 	k8s.io/component-helpers v0.31.2 // indirect
 	k8s.io/controller-manager v0.31.2 // indirect
 	k8s.io/kms v0.31.2 // indirect

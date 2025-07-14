@@ -3,6 +3,7 @@
 
 _charts/
 bin/
+_deploy/
 .env
 
 # Binaries for programs and plugins

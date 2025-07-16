@@ -52,9 +52,7 @@ func initViper() *viper.Viper {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("$HOME/.csi-driver-opennebula/")
 	viper.AddConfigPath("/etc/csi-driver-opennebula/")
-	if err := viper.ReadInConfig(); err != nil {
-		klog.Warningf("Error reading config file, %s", err)
-	} else {
+	if err := viper.ReadInConfig(); err == nil {
 		klog.Infof("Using config file: %s", viper.ConfigFileUsed())
 	}
 	viper.WatchConfig()

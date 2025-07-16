@@ -37,8 +37,10 @@ const (
 )
 
 type GRPCServer struct {
-	server *grpc.Server
-	wg     sync.WaitGroup
+	endpoint string
+	listener net.Listener
+	server   *grpc.Server
+	wg       sync.WaitGroup
 }
 
 func NewGRPCServer() *GRPCServer {
@@ -56,16 +58,37 @@ func (s *GRPCServer) Wait() {
 	s.wg.Wait()
 }
 
-func (s *GRPCServer) Stop() {
-	s.server.GracefulStop()
+// Stop attempts a graceful shutdown of the GRPC server, and will force stop if the context is canceled or times out.
+func (s *GRPCServer) Stop(ctx context.Context) {
+	stopped := make(chan struct{})
+	go func() {
+		s.server.GracefulStop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		// GracefulStop finished
+	case <-ctx.Done():
+		// Timeout or cancellation, force stop
+		s.server.Stop()
+	}
+
+	err := s.listener.Close()
+	if err != nil {
+		klog.Warningf("error closing listener: %s", err)
+	}
 }
 
 func (s *GRPCServer) ForceStop() {
 	s.server.Stop()
+	s.listener.Close()
 }
 
 func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeServer *NodeServer, controllerServer *ControllerServer) {
 	defer s.wg.Done()
+
+	s.endpoint = endpoint
 
 	protocol, address, err := parseGRPCServerEndpoint(endpoint)
 	if err != nil {
@@ -76,6 +99,7 @@ func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeSe
 	if err != nil {
 		klog.Fatalf("could not listen on %s: %s", address, err)
 	}
+	s.listener = listener
 
 	serverOptions := []grpc.ServerOption{
 		grpc.UnaryInterceptor(logInterceptor),

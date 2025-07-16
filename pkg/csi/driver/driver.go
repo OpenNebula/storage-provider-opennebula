@@ -16,7 +16,10 @@ limitations under the License.
 package driver
 
 import (
+	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
 	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/opennebula"
@@ -30,6 +33,7 @@ const (
 	DefaultDriverName         = "csi.opennebula.io" //TODO: get from a repo metadata file or from a build flag
 	DefaultGRPCServerEndpoint = "unix:///tmp/csi.sock"
 	DefaultVolumeSizeBytes    = 1 * 1024 * 1024 * 1024
+	GracefulShutdownTimeout   = 25 * time.Second
 )
 
 var (
@@ -71,13 +75,14 @@ func NewDriver(options *DriverOptions) *Driver {
 		nodeID:             options.NodeID,
 		grpcServerEndpoint: options.GRPCServerEndpoint,
 		PluginConfig:       options.PluginConfig,
+		maxVolumesPerNode:  options.MaxVolumesPerNode,
 	}
 
 	//TODO: Initialize volumeLocks
 
 }
 
-func (d *Driver) Run() {
+func (d *Driver) Run(ctx context.Context) error {
 	//TODO: Show driver metadata
 
 	grpcServer := NewGRPCServer()
@@ -89,14 +94,12 @@ func (d *Driver) Run() {
 
 	endpoint, ok := d.PluginConfig.GetString(config.OpenNebulaRPCEndpointVar)
 	if !ok {
-		klog.Fatalf("Failed to get %s endpoint from config", config.OpenNebulaRPCEndpointVar)
-		return
+		return fmt.Errorf("failed to get %s endpoint from config", config.OpenNebulaRPCEndpointVar)
 	}
 
 	credentials, ok := d.PluginConfig.GetString(config.OpenNebulaCredentialsVar)
 	if !ok {
-		klog.Fatalf("Failed to get %s credentials from config", config.OpenNebulaCredentialsVar)
-		return
+		return fmt.Errorf("failed to get %s credentials from config", config.OpenNebulaCredentialsVar)
 	}
 
 	volumeProvider, err := opennebula.NewPersistentDiskVolumeProvider(
@@ -105,8 +108,7 @@ func (d *Driver) Run() {
 			Credentials: credentials,
 		}))
 	if err != nil || volumeProvider == nil {
-		klog.Fatalf("Failed to create PersistentDiskVolumeProvider: %v", err)
-		return
+		return fmt.Errorf("failed to create PersistentDiskVolumeProvider: %v", err)
 	}
 
 	grpcServer.Start(
@@ -116,5 +118,15 @@ func (d *Driver) Run() {
 		NewControllerServer(d, volumeProvider),
 	)
 
+	go func() {
+		<-ctx.Done()
+		klog.Info("Received shutdown signal, stopping driver...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), GracefulShutdownTimeout)
+		defer cancel()
+		grpcServer.Stop(shutdownCtx)
+	}()
+
 	grpcServer.Wait()
+
+	return nil
 }

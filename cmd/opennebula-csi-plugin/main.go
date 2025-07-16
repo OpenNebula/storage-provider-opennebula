@@ -17,8 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
 	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/driver"
@@ -55,5 +58,19 @@ func handle(cfg config.CSIPluginConfig) {
 		PluginConfig:       cfg,
 	}
 	driver := driver.NewDriver(driverOptions)
-	driver.Run()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cancelChan := make(chan os.Signal, 1)
+	signal.Notify(cancelChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-cancelChan
+		cancel()
+	}()
+
+	err := driver.Run(ctx)
+	if err != nil {
+		klog.Fatalf("Failed to run driver: %v", err)
+	}
 }

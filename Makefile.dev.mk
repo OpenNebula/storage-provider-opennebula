@@ -134,7 +134,8 @@ WORKLOAD_CLUSTER_KUBECONFIG ?= kubeconfig-workload.yaml
 
 # Develop environment
 
-.PHONY: mgmt-cluster-create mgmt-cluster-delete workload-cluster-deploy workload-cluster-destroy
+.PHONY: mgmt-cluster-create mgmt-cluster-delete workload-cluster-deploy workload-cluster-destroy \
+	workload-cluster-flannel workload-cluster-kubeconfig tilt-up tilt-down tilt-clean
 
 mgmt-cluster-create: $(CLUSTERCTL) $(CTLPTL) $(KIND)
 	@kind --version

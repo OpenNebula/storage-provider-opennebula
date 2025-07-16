@@ -109,6 +109,11 @@ CLUSTER_TEMPLATES:
       VCPU = "2"
 endef
 
+
+# NOTE: If using this insecure local registry,
+# ensure you configure your container runtime to trust it.
+# e.g. in docker: https://docs.docker.com/reference/cli/dockerd/#insecure-registries
+# (e.g. add `"insecure-registries" : [ "172.20.0.1:5005" ]` in /etc/docker/daemon.json)
 define CTLPTL_CLUSTER_YAML
 ---
 apiVersion: ctlptl.dev/v1alpha1

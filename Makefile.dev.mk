@@ -146,12 +146,6 @@ mgmt-cluster-destroy: $(CTLPTL)
 
 workload-cluster-deploy: workload-cluster-init workload-cluster-flannel
 
-test-script:
-	@echo "Running test script..."
-	@echo "$$HELM_VALUES" > /tmp/cluster_templates_values.yaml
-	cat /tmp/cluster_templates_values.yaml
-	rm --preserve-root -f /tmp/cluster_templates_values.yaml
-
 workload-cluster-init: $(HELM)
 	@if ! $(HELM) repo list -o json | jq -e '.[] | select(.name=="capone")' > /dev/null; then \
 		$(HELM) repo add capone https://opennebula.github.io/cluster-api-provider-opennebula/charts/ && $(HELM) repo update; \

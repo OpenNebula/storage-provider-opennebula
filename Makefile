@@ -16,11 +16,11 @@ else
 GOBIN := $(shell go env GOBIN)
 endif
 
-GOLANGCI_LINT_VERSION	?= 2.2.1
-ENVSUBST_VERSION		?= 1.4.2
-KUBECTL_VERSION			?= 1.31.4
-KUSTOMIZE_VERSION		?= 5.6.0
-HELM_VERSION			?= 3.17.3
+GOLANGCI_LINT_VERSION		?= 2.2.1
+ENVSUBST_VERSION			?= 1.4.2
+KUBECTL_VERSION				?= 1.31.4
+KUSTOMIZE_VERSION			?= 5.6.0
+HELM_VERSION				?= 3.17.3
 
 GOLANGCI_LINT	:= $(SELF)/bin/golangci-lint
 ENVSUBST  		:= $(SELF)/bin/envsubst
@@ -47,9 +47,10 @@ BUILD_BINS := opennebula-cloud-controller-manager opennebula-csi-plugin
 # List of container image names to build and push
 IMAGE_NAMES := cloud-provider-opennebula opennebula-csi-plugin
 
-
 -include .env
 export
+
+include Makefile.dev.mk
 
 .PHONY: all clean
 
@@ -176,7 +177,7 @@ ifndef ignore-not-found
 ignore-not-found := false
 endif
 
-.PHONY: deploy-kadm undeploy-kad mdeploy undeploy
+.PHONY: deploy-kadm undeploy-kadm deploy-rke2 undeploy-rke2
 
 # Deploy controller to the K8s cluster specified in ~/.kube/config.
 deploy-kadm deploy-rke2: deploy-%: $(KUSTOMIZE) $(ENVSUBST) $(KUBECTL)
@@ -184,7 +185,41 @@ deploy-kadm deploy-rke2: deploy-%: $(KUSTOMIZE) $(ENVSUBST) $(KUBECTL)
 
 # Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 undeploy-kadm undeploy-rke2: undeploy-%: $(KUSTOMIZE) $(ENVSUBST) $(KUBECTL)
-	$(KUSTOMIZE) build kustomize/$*/ | $(ENVSUBST) | $(KUBECTL) --ignore-not-found=$(ignore-not-found) delete -f-
+
+
+# Helm
+
+.PHONY: helm-deploy-opennebula-csi-plugin helm-undeploy-opennebula-csi-plugin manifests-opennebula-csi-plugin manifests-opennebula-csi-plugin-dev
+
+helm-deploy-opennebula-csi-plugin: $(HELM) # Deploy OpenNebula CSI plugin using Helm to the cluster specified in ~/.kube/config.
+	$(HELM) upgrade --install opennebula-csi-plugin helm/opennebula-csi-plugin
+		--set image.repository=$(REMOTE_REGISTRY)/opennebula-csi-plugin \
+		--set image.tag=$(CLOSEST_TAG) \
+		--set image.pullPolicy="IfNotPresent" \
+		--set oneApiEndpoint=$(ONE_XMLRPC) \
+		--set oneAuth=$(ONE_AUTH)
+
+helm-undeploy-opennebula-csi-plugin: $(HELM) # Undeploy OpenNebula CSI plugin from the cluster specified in ~/.kube/config.
+	$(HELM) uninstall opennebula-csi-plugin
+
+manifests-opennebula-csi-plugin: $(HELM)
+	$(HELM) template opennebula-csi-plugin helm/opennebula-csi-plugin \
+		--set image.repository=$(REMOTE_REGISTRY)/opennebula-csi-plugin \
+		--set image.tag=$(CLOSEST_TAG) \
+		--set image.pullPolicy="IfNotPresent" \
+		--set oneApiEndpoint=$(ONE_XMLRPC) \
+		--set oneAuth=$(ONE_AUTH) \
+		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/release/opennebula-csi-plugin.yaml
+
+manifests-opennebula-csi-plugin-dev: $(HELM)
+	$(HELM) template opennebula-csi-plugin helm/opennebula-csi-plugin \
+		--set image.repository=$(LOCAL_REGISTRY)/opennebula-csi-plugin \
+		--set image.tag=$(LOCAL_TAG) \
+		--set image.pullPolicy="Always" \
+		--set oneApiEndpoint=$(ONE_XMLRPC) \
+		--set oneAuth=$(ONE_AUTH) \
+		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/dev/opennebula-csi-plugin.yaml
+
 
 # Dependencies
 

@@ -17,7 +17,7 @@
 ##
 
 # Build the manager binary
-FROM --platform=${BUILDPLATFORM} golang:1.22 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.24 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -65,9 +65,9 @@ ENTRYPOINT ["/opennebula-cloud-controller-manager"]
 ##
 
 FROM gcr.io/distroless/static:nonroot AS opennebula-csi-plugin
-WORKDIR /
+WORKDIR /app
 COPY --from=builder /workspace/opennebula-csi-plugin .
 # Use a non-root user to run the container
 USER 65532:65532
 
-ENTRYPOINT ["/opennebula-csi-plugin"]
+ENTRYPOINT ["/app/opennebula-csi-plugin"]

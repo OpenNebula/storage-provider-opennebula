@@ -6,6 +6,9 @@ bin/
 _deploy/
 .env
 
+tilt/build
+kubeconfig-workload.yaml
+
 # Binaries for programs and plugins
 *.exe
 *.exe~

@@ -16,6 +16,8 @@ spec:
     metadata:
       labels:
         app: opennebula-csi-node
+      annotations:
+        kubectl.kubernetes.io/default-container: opennebula-csi-plugin
     spec:
       serviceAccountName: opennebula-csi-node-sa
       priorityClassName: system-node-critical
@@ -36,6 +38,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: ONE_XMLRPC
+              value: "{{ .Values.oneApiEndpoint }}"
+            - name: ONE_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: csi-opennebula-auth
+                  key: credentials
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
           volumeMounts:
             - name: csi-socket-dir
               mountPath: /csi

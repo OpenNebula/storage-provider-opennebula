@@ -23,7 +23,4 @@ COPY tilt/build/opennebula-csi-plugin .
 # Ensure the binary is executable
 RUN chmod +x /app/opennebula-csi-plugin
 
-# Use a non-root user to run the container
-USER 65532:65532
-
 ENTRYPOINT ["/app/opennebula-csi-plugin"]

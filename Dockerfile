@@ -67,7 +67,5 @@ ENTRYPOINT ["/opennebula-cloud-controller-manager"]
 FROM gcr.io/distroless/static:nonroot AS opennebula-csi-plugin
 WORKDIR /app
 COPY --from=builder /workspace/opennebula-csi-plugin .
-# Use a non-root user to run the container
-USER 65532:65532
 
 ENTRYPOINT ["/app/opennebula-csi-plugin"]

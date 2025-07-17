@@ -140,7 +140,7 @@ WORKLOAD_CLUSTER_KUBECONFIG ?= kubeconfig-workload.yaml
 # Develop environment
 
 .PHONY: mgmt-cluster-create mgmt-cluster-delete workload-cluster-deploy workload-cluster-destroy \
-	workload-cluster-flannel workload-cluster-kubeconfig tilt-up tilt-down tilt-clean
+	workload-cluster-flannel workload-cluster-kubeconfig tilt-up tilt-down tilt-up-debug tilt-down-debug tilt-clean
 
 mgmt-cluster-create: $(CLUSTERCTL) $(CTLPTL) $(KIND)
 	@kind --version
@@ -161,7 +161,7 @@ workload-cluster-init: $(HELM)
 		--set ONE_XMLRPC=$(ONE_XMLRPC) \
 		--set ONE_AUTH=$(ONE_AUTH) \
 		--values /tmp/cluster_templates_values.yaml
-	@rm -f --preserve-root /tmp/cluster_templates_values.yaml
+	@rm -f /tmp/cluster_templates_values.yaml
 
 workload-cluster-flannel: $(CLUSTERCTL) $(KUBECTL)
 	@for i in {1..60}; do \
@@ -185,6 +185,12 @@ tilt-up: $(TILT) $(KUBECTL) workload-cluster-kubeconfig
 
 tilt-down: $(TILT)
 	$(TILT) down --file $(SELF)/tilt/Tiltfile
+
+tilt-up-debug: $(TILT) $(KUBECTL) workload-cluster-kubeconfig
+	export KUBECONFIG=$(WORKLOAD_CLUSTER_KUBECONFIG) && $(TILT) up --file $(SELF)/tilt/Tiltfile.debug
+
+tilt-down-debug: $(TILT)
+	$(TILT) down --file $(SELF)/tilt/Tiltfile.debug
 
 tilt-clean: $(TILT)
 	rm --preserve-root -rf $(SELF)/tilt/build

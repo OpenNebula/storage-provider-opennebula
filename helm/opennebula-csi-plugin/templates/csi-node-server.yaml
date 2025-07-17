@@ -28,6 +28,12 @@ spec:
         - name: opennebula-csi-plugin
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.debugPort }}
+          ports:
+            - containerPort: {{ .Values.debugPort }}
+              name: debug
+              protocol: TCP
+          {{- end }}
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(NODE_ID)"

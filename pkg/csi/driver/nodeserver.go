@@ -421,6 +421,14 @@ func (ns *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpubl
 		Str("targetPath", targetPath).
 		Msg("Unpublishing volume")
 
+	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		log.Info().
+			Str("volumeID", volumeID).
+			Str("targetPath", targetPath).
+			Msg("Target path does not exist, skipping unmount")
+		return &csi.NodeUnpublishVolumeResponse{}, nil
+	}
+
 	err := ns.mounter.Unmount(targetPath)
 	if err != nil {
 		log.Error().

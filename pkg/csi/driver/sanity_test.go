@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"os"
 	"path"
 	"testing"
@@ -31,7 +32,10 @@ func TestDriver(t *testing.T) {
 		t.Fatalf("Failed to create driver")
 	}
 
-	go driver.Run(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go driver.Run(ctx)
 
 	config := sanity.NewTestConfig()
 	config.Address = grpcEndpoint

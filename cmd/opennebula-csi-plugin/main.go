@@ -26,6 +26,8 @@ import (
 	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
 	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/driver"
 	"k8s.io/klog/v2"
+	"k8s.io/mount-utils"
+	"k8s.io/utils/exec"
 )
 
 var (
@@ -51,11 +53,16 @@ func main() {
 }
 
 func handle(cfg config.CSIPluginConfig) {
+	mounter := mount.NewSafeFormatAndMount(
+		mount.New(""), // using default linux mounter implementation
+		exec.New(),
+	)
 	driverOptions := &driver.DriverOptions{
 		NodeID:             *nodeID,
 		DriverName:         *driverName,
 		GRPCServerEndpoint: *pluginEndpoint,
 		PluginConfig:       cfg,
+		Mounter:            mounter,
 	}
 	driver := driver.NewDriver(driverOptions)
 

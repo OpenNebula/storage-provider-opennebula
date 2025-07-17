@@ -26,7 +26,6 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
-	"k8s.io/utils/exec"
 )
 
 const (
@@ -58,6 +57,8 @@ type Driver struct {
 	volumeLocks *VolumeLocks
 
 	maxVolumesPerNode int64
+
+	mounter *mount.SafeFormatAndMount
 }
 
 type DriverOptions struct {
@@ -66,6 +67,7 @@ type DriverOptions struct {
 	MaxVolumesPerNode  int64
 	GRPCServerEndpoint string
 	PluginConfig       config.CSIPluginConfig
+	Mounter            *mount.SafeFormatAndMount
 }
 
 func NewDriver(options *DriverOptions) *Driver {
@@ -76,6 +78,7 @@ func NewDriver(options *DriverOptions) *Driver {
 		grpcServerEndpoint: options.GRPCServerEndpoint,
 		PluginConfig:       options.PluginConfig,
 		maxVolumesPerNode:  options.MaxVolumesPerNode,
+		mounter:            options.Mounter,
 	}
 
 	//TODO: Initialize volumeLocks
@@ -86,11 +89,6 @@ func (d *Driver) Run(ctx context.Context) error {
 	//TODO: Show driver metadata
 
 	grpcServer := NewGRPCServer()
-
-	mounter := mount.NewSafeFormatAndMount(
-		mount.New(""), // using default linux mounter implementation
-		exec.New(),
-	)
 
 	endpoint, ok := d.PluginConfig.GetString(config.OpenNebulaRPCEndpointVar)
 	if !ok {
@@ -114,7 +112,7 @@ func (d *Driver) Run(ctx context.Context) error {
 	grpcServer.Start(
 		d.grpcServerEndpoint,
 		NewIdentityServer(d),
-		NewNodeServer(d, mounter),
+		NewNodeServer(d, d.mounter),
 		NewControllerServer(d, volumeProvider),
 	)
 

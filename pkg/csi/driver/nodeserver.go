@@ -167,6 +167,13 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		//Strs("mountFlags", mountFlags). //TODO: Warning, could contain sensitive data
 		Msg("Formatting and mounting volume")
 
+	if _, err := os.Stat(stagingTargetPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(stagingTargetPath, 0750); err != nil {
+			return nil, status.Errorf(codes.Internal,
+				"failed to create staging target path %s: %v", stagingTargetPath, err)
+		}
+	}
+
 	err = ns.mounter.FormatAndMount(devicePath, stagingTargetPath, fsType, mountFlags)
 	if err != nil {
 		log.Error().
@@ -278,6 +285,13 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
 		Str("stagingTargetPath", stagingTargetPath).
 		Str("targetPath", targetPath).
 		Msg("Publishing volume")
+
+	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(targetPath, 0750); err != nil {
+			return nil, status.Errorf(codes.Internal,
+				"failed to create target path %s: %v", targetPath, err)
+		}
+	}
 
 	options := []string{"bind"}
 	if req.Readonly {

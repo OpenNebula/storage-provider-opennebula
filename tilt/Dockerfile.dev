@@ -20,6 +20,7 @@ FROM alpine AS opennebula-csi-plugin
 WORKDIR /app
 COPY tilt/build/opennebula-csi-plugin .
 
+RUN apk add --no-cache e2fsprogs util-linux
 # Ensure the binary is executable
 RUN chmod +x /app/opennebula-csi-plugin
 

@@ -18,6 +18,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -229,10 +230,16 @@ func TestControllerPublishVolume(t *testing.T) {
 			setupMock: func(m *MockOpenNebulaVolumeProviderTestify) {
 				m.On("VolumeExists", mock.Anything, "1234").Return(1, 1, nil)
 				m.On("NodeExists", mock.Anything, "test-node-id").Return(1, nil)
+				m.On("GetVolumeInNode", mock.Anything, 1, 1).Once().Return("", errors.New("volume not attached to node"))
 				m.On("AttachVolume", mock.Anything, "1234", "test-node-id").Return(nil)
+				m.On("GetVolumeInNode", mock.Anything, 1, 1).Once().Return("attached-volume", nil)
 			},
-			expectResponse: &csi.ControllerPublishVolumeResponse{},
-			expectError:    false,
+			expectResponse: &csi.ControllerPublishVolumeResponse{
+				PublishContext: map[string]string{
+					"volumeName": "attached-volume",
+				},
+			},
+			expectError: false,
 		},
 	}
 
@@ -393,6 +400,9 @@ func TestControllerUnpublishVolume(t *testing.T) {
 				NodeId:   "test-node-id",
 			},
 			setupMock: func(m *MockOpenNebulaVolumeProviderTestify) {
+				m.On("VolumeExists", mock.Anything, "test-volume-id").Return(1, 1, nil)
+				m.On("NodeExists", mock.Anything, "test-node-id").Return(42, nil)
+				m.On("GetVolumeInNode", mock.Anything, 1, 42).Return("attached-target", nil)
 				m.On("DetachVolume", mock.Anything, "test-volume-id", "test-node-id").Return(nil)
 			},
 			expectResponse: &csi.ControllerUnpublishVolumeResponse{},

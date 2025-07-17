@@ -31,7 +31,7 @@ func TestDriver(t *testing.T) {
 		t.Fatalf("Failed to create driver")
 	}
 
-	go driver.Run()
+	go driver.Run(t.Context())
 
 	config := sanity.NewTestConfig()
 	config.Address = grpcEndpoint

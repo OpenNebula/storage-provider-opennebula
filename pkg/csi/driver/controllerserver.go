@@ -134,13 +134,22 @@ func (s *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
 
+	target, err := s.volumeProvider.GetVolumeInNode(ctx, volumeID, nodeID)
+	if err == nil {
+		return &csi.ControllerPublishVolumeResponse{
+			PublishContext: map[string]string{
+				"volumeName": target,
+			},
+		}, nil
+	}
+
 	// TODO: Validate VolumeCapability
 	err = s.volumeProvider.AttachVolume(ctx, req.VolumeId, req.NodeId)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to attach volume")
 	}
 
-	target, err := s.volumeProvider.GetVolumeInNode(ctx, volumeID, nodeID)
+	target, err = s.volumeProvider.GetVolumeInNode(ctx, volumeID, nodeID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to get volume in node")
 	}

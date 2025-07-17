@@ -170,9 +170,25 @@ func (s *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *c
 		return nil, status.Error(codes.InvalidArgument, "missing node ID")
 	}
 
-	err := s.volumeProvider.DetachVolume(ctx, req.VolumeId, req.NodeId)
+	volumeID, _, err := s.volumeProvider.VolumeExists(ctx, req.VolumeId)
+	if err != nil || volumeID == -1 {
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
+	}
+
+	nodeID, err := s.volumeProvider.NodeExists(ctx, req.NodeId)
+	if err != nil || nodeID == -1 {
+		return nil, status.Error(codes.NotFound, "node not found")
+	}
+
+	_, err = s.volumeProvider.GetVolumeInNode(ctx, volumeID, nodeID)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to attach volume")
+		klog.V(4).Infof("Volume does not exist in node")
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
+	}
+
+	err = s.volumeProvider.DetachVolume(ctx, req.VolumeId, req.NodeId)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to detach volume")
 	}
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }

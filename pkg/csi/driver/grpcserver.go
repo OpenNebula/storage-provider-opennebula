@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 
@@ -78,6 +79,12 @@ func (s *GRPCServer) Stop(ctx context.Context) {
 	if err != nil {
 		klog.Warningf("error closing listener: %s", err)
 	}
+
+	_, address, err := parseGRPCServerEndpoint(s.endpoint)
+	if err != nil {
+		klog.Fatalf("could not initialize GRPC server: %s", err)
+	}
+	os.Remove(address)
 }
 
 func (s *GRPCServer) ForceStop() {
@@ -94,6 +101,8 @@ func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeSe
 	if err != nil {
 		klog.Fatalf("could not initialize GRPC server: %s", err)
 	}
+
+	os.Remove(address)
 
 	listener, err := net.Listen(protocol, address)
 	if err != nil {

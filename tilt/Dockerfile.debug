@@ -20,6 +20,8 @@ FROM golang:1.24-alpine AS opennebula-csi-plugin
 
 ARG DEBUG_PORT=5000
 
+RUN apk add --no-cache e2fsprogs util-linux
+
 RUN CGO_ENABLED=0 go install github.com/go-delve/delve/cmd/dlv@latest
 
 WORKDIR /app

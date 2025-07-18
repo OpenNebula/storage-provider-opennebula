@@ -68,4 +68,6 @@ FROM gcr.io/distroless/static:nonroot AS opennebula-csi-plugin
 WORKDIR /app
 COPY --from=builder /workspace/opennebula-csi-plugin .
 
+RUN apk add --no-cache e2fsprogs util-linux
+
 ENTRYPOINT ["/app/opennebula-csi-plugin"]

@@ -18,9 +18,7 @@ package driver
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 	"reflect"
@@ -146,6 +144,7 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		if mountCheck.fsTypeMatches {
 			return &csi.NodeStageVolumeResponse{}, nil
 		}
+		//TODO: Correct this
 
 		//Check if the volume with volumeID is already staged at stagingTargetPath
 		// but is incompatible with the volumeCapability provided in the request,
@@ -168,7 +167,7 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		Msg("Formatting and mounting volume")
 
 	if _, err := os.Stat(stagingTargetPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(stagingTargetPath, 0750); err != nil {
+		if err := os.MkdirAll(stagingTargetPath, 0775); err != nil {
 			return nil, status.Errorf(codes.Internal,
 				"failed to create staging target path %s: %v", stagingTargetPath, err)
 		}
@@ -183,7 +182,7 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 			Str("fsType", fsType).
 			//Strs("mountFlags", mountFlags). //TODO: Warning, could contain sensitive data
 			Msg("Failed to format and mount volume")
-		return nil, status.Error(codes.Internal, "failed to format and mount volume")
+		return nil, status.Errorf(codes.Internal, "failed to format and mount volume: %s", err)
 	}
 
 	log.Info().Msg("Volume staged successfully")
@@ -206,46 +205,25 @@ func (ns *NodeServer) NodeUnstageVolume(_ context.Context, req *csi.NodeUnstageV
 		return nil, status.Error(codes.InvalidArgument, "staging target path is required")
 	}
 
-	// check idempotency: if the volume_id is not staged (mounted) at the stagingTargetPath,
-	// return 0 OK response
-	isMountPoint, err := ns.mounter.IsMountPoint(stagingTargetPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			log.Info().
-				Str("volumeID", volumeID).
-				Str("stagingTargetPath", stagingTargetPath).
-				Msg("Staging target path does not exist, skipping unmount")
-			return &csi.NodeUnstageVolumeResponse{}, nil
-		} else {
-			log.Error().
-				Err(err).
-				Str("volumeID", volumeID).
-				Str("stagingTargetPath", stagingTargetPath).
-				Msg("Failed to check if staging target path is a mount point")
-		}
-	}
-	if !isMountPoint {
-		log.Info().
-			Str("volumeID", volumeID).
-			Str("stagingTargetPath", stagingTargetPath).
-			Msg("Staging target path is not a mount point, skipping unmount")
-		return &csi.NodeUnstageVolumeResponse{}, nil
-	}
-
 	log.Info().
 		Str("volumeID", volumeID).
 		Str("stagingTargetPath", stagingTargetPath).
-		Msg("Unmounting volume")
+		Msg("Cleaning staging target path volume mount point")
 
-	err = ns.mounter.Unmount(stagingTargetPath)
+	err := mount.CleanupMountPoint(stagingTargetPath, ns.mounter, true)
 	if err != nil {
 		log.Error().
 			Err(err).
 			Str("volumeID", volumeID).
 			Str("stagingTargetPath", stagingTargetPath).
-			Msg("Failed to unmount staging target path")
-		return nil, status.Error(codes.Internal, "failed to unmount staging target path")
+			Msg("Failed to clean mount point of staging target path")
+		return nil, status.Error(codes.Internal, "failed to clean mount point of staging target path")
 	}
+
+	log.Info().
+		Str("volumeID", volumeID).
+		Str("stagingTargetPath", stagingTargetPath).
+		Msg("Volume unmounted successfully")
 
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
@@ -368,7 +346,7 @@ func (ns NodeServer) handleMountVolumePublish(stagingPath, targetPath string, vo
 	}
 
 	//volume is already mounted at targetPath
-	if checkMountPoint.targetIsMountPoint && checkMountPoint.deviceIsMounted {
+	if checkMountPoint.targetIsMountPoint {
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
@@ -383,21 +361,32 @@ func (ns NodeServer) handleMountVolumePublish(stagingPath, targetPath string, vo
 	}
 
 	log.Info().
+		Str("nodeId", ns.Driver.nodeID).
 		Str("stagingPath", stagingPath).
 		Str("targetPath", targetPath).
+		Str("fsType", fsType).
+		Str("mountFlags", fmt.Sprintf("%v", options)).
 		Msg("Mounting file system volume at target path")
 
 	err = ns.mounter.Mount(stagingPath, targetPath, fsType, options)
 	if err != nil {
 		log.Error().
 			Err(err).
+			Str("nodeId", ns.Driver.nodeID).
 			Str("stagingPath", stagingPath).
 			Str("targetPath", targetPath).
 			Str("fsType", fsType).
+			Str("options", fmt.Sprintf("%v", options)).
 			//Strs("mountFlags", mountFlags). //TODO: Warning, could contain sensitive data
 			Msg("Failed to mount file system volume at target path")
 		return nil, status.Error(codes.Internal, "failed to mount file system volume at target path")
 	}
+
+	log.Info().
+		Str("nodeId", ns.Driver.nodeID).
+		Str("stagingPath", stagingPath).
+		Str("targetPath", targetPath).
+		Msg("File system volume successfully mounted at target path")
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }
@@ -421,15 +410,7 @@ func (ns *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpubl
 		Str("targetPath", targetPath).
 		Msg("Unpublishing volume")
 
-	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-		log.Info().
-			Str("volumeID", volumeID).
-			Str("targetPath", targetPath).
-			Msg("Target path does not exist, skipping unmount")
-		return &csi.NodeUnpublishVolumeResponse{}, nil
-	}
-
-	err := ns.mounter.Unmount(targetPath)
+	err := mount.CleanupMountPoint(targetPath, ns.mounter, true)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -481,6 +462,11 @@ func (ns *NodeServer) NodeGetCapabilities(_ context.Context, req *csi.NodeGetCap
 func (ns *NodeServer) NodeGetInfo(_ context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	nodeId := ns.Driver.nodeID
 	maxVolumesPerNode := ns.Driver.maxVolumesPerNode
+	log.Info().
+		Str("nodeId", nodeId).
+		Int("maxVolumesPerNode", int(maxVolumesPerNode)).
+		Msg("NodeGetInfo called")
+
 	return &csi.NodeGetInfoResponse{
 		NodeId:            nodeId,
 		MaxVolumesPerNode: maxVolumesPerNode,
@@ -508,8 +494,14 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 
 	foundMountPoint := mount.MountPoint{}
 	for _, mp := range mountPoints {
-		if mp.Path == srcPath {
+		if mp.Path == targetPath {
 			foundMountPoint = mp
+			log.Info().
+				Str("srcPath", srcPath).
+				Str("targetPath", targetPath).
+				Str("foundMountPoint", fmt.Sprintf("%+v", mp)).
+				Msg("Found mount point matching target path")
+			break
 		}
 	}
 
@@ -519,6 +511,13 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 			mountPointMatch.deviceIsMounted = true
 		}
 	}
+
+	log.Info().
+		Str("srcPath", srcPath).
+		Str("targetPath", targetPath).
+		Bool("targetIsMountPoint", mountPointMatch.targetIsMountPoint).
+		Bool("deviceIsMounted", mountPointMatch.deviceIsMounted).
+		Msg("Mount point check results")
 
 	//if volumeCapability is nil, skip volume capability checks
 	if volumeCapability == nil {
@@ -530,7 +529,11 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 	case *csi.VolumeCapability_Mount:
 		// Check if the filesystem type matches
 		fsType := accessType.Mount.GetFsType()
-		if foundMountPoint.Type == fsType {
+		log.Info().
+			Str("fsType", fsType).
+			Str("foundMountPointType", foundMountPoint.Type).
+			Msg("Checking filesystem type for mount point compatibility")
+		if len(fsType) == 0 || foundMountPoint.Type == fsType {
 			mountPointMatch.fsTypeMatches = true
 		}
 		// TODO: Check if the mount flags match
@@ -549,6 +552,16 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 		mountPointMatch.volumeCapabilitySupported = false
 		mountPointMatch.compatibleWithVolumeCapability = false
 	}
+
+	log.Info().
+		Str("srcPath", srcPath).
+		Str("targetPath", targetPath).
+		Bool("targetIsMountPoint", mountPointMatch.targetIsMountPoint).
+		Bool("deviceIsMounted", mountPointMatch.deviceIsMounted).
+		Bool("fsTypeMatches", mountPointMatch.fsTypeMatches).
+		Bool("volumeCapabilitySupported", mountPointMatch.volumeCapabilitySupported).
+		Bool("compatibleWithVolumeCapability", mountPointMatch.compatibleWithVolumeCapability).
+		Msg("Mount point check results")
 
 	return mountPointMatch, nil
 }

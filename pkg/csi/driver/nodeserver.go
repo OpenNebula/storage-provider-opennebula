@@ -25,9 +25,9 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/klog/v2"
 	mount "k8s.io/mount-utils"
 )
 
@@ -68,9 +68,7 @@ func NewNodeServer(d *Driver, mounter *mount.SafeFormatAndMount) *NodeServer {
 // the volume at the staging target path.
 func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 
-	log.Debug().
-		Str("args", protosanitizer.StripSecrets(req).String()).
-		Msg("NodeStageVolume called")
+	klog.V(1).InfoS("NodeStageVolume called", "req", protosanitizer.StripSecrets(req).String())
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -90,8 +88,7 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 
 	accessType := volumeCapability.GetAccessType()
 	if _, ok := accessType.(*csi.VolumeCapability_Block); ok {
-		// Block access type -> skip mounting and formatting
-		log.Info().Msg("Block access type detected, skipping formatting and mounting")
+		klog.V(3).Info("Block access type detected, skipping formatting and mounting")
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
@@ -109,65 +106,60 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		fsType = defaultFSType
 	}
 
-	// Check if volume with volumeID exists
+	// Check if device path for volumeID exists
 	if _, err := os.Stat(devicePath); os.IsNotExist(err) {
-		log.Error().
-			Str("volumeID", volumeID).
-			Str("devicePath", devicePath).
-			Msg("Device path does not exist, cannot format and mount volume")
+		klog.V(0).ErrorS(err, "Device path does not exist",
+			"method", "NodeStageVolume", "volumeID", volumeID, "devicePath", devicePath)
 		return nil, status.Error(codes.NotFound, "device path does not exist")
 	}
 
 	mountCheck, err := ns.checkMountPoint(devicePath, stagingTargetPath, volumeCapability)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("volumeName", volName).
-			Str("stagingTargetPath", stagingTargetPath).
-			Msg("Failed to check mount point")
+		klog.V(0).ErrorS(err, "Failed to check mount point",
+			"method", "NodeStageVolume", "devicePath", devicePath, "stagingTargetPath", stagingTargetPath)
 		return nil, status.Error(codes.Internal, "failed to check mount point")
 	}
 
 	//If the volume capability are not supported by the volume
 	// return 9 FAILED_PRECONDITION error
 	if !mountCheck.volumeCapabilitySupported {
-		log.Error().
-			Str("volumeName", volName).
-			Str("stagingTargetPath", stagingTargetPath).
-			Msg("Volume capability is not supported by the volume")
+		klog.V(0).ErrorS(err, "Volume capability is not supported by the volume",
+			"method", "NodeStageVolume", "volumeName", volName, "stagingTargetPath", stagingTargetPath,
+			"volumeCapability", protosanitizer.StripSecrets(volumeCapability))
 		return nil, status.Error(codes.FailedPrecondition, "volume capability is not supported by the volume")
 	}
 
 	if mountCheck.targetIsMountPoint && mountCheck.deviceIsMounted {
-		//Check if volume_id is already staged in stagingTargetPath and is identical
-		// to the volumeCapability provided in the request, then return 0 OK response
-		if mountCheck.fsTypeMatches {
-			return &csi.NodeStageVolumeResponse{}, nil
+		if !mountCheck.fsTypeMatches {
+			klog.V(0).InfoS(
+				"Warning! Already existing filesystem does not match the expected type",
+				"method", "NodeStageVolume", "volumeID", volumeID, "devicePath", devicePath,
+				"stagingTargetPath", stagingTargetPath, "fsType", fsType)
 		}
-		//TODO: Correct this
 
 		//Check if the volume with volumeID is already staged at stagingTargetPath
 		// but is incompatible with the volumeCapability provided in the request,
 		// then return 6 ALREADY_EXISTS error
 		if !mountCheck.compatibleWithVolumeCapability {
-			log.Error().
-				Str("volumeName", volName).
-				Str("stagingTargetPath", stagingTargetPath).
-				Msg("Volume capability is not compatible with the volume")
+			klog.V(0).ErrorS(nil, "Volume capability is not compatible with the volume",
+				"method", "NodeStageVolume", "devicePath", devicePath, "stagingTargetPath", stagingTargetPath,
+				"fsType", fsType, "mountFlags", mountFlags)
 			return nil, status.Error(codes.AlreadyExists, "volume capability is not compatible with the volume")
 		}
+
+		//Check if volume_id is already staged in stagingTargetPath and is identical
+		// to the volumeCapability provided in the request, then return 0 OK response
+		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
-	log.Info().
-		Str("volumeID", volumeID).
-		Str("devicePath", devicePath).
-		Str("stagingTargetPath", stagingTargetPath).
-		Str("fsType", fsType).
-		//Strs("mountFlags", mountFlags). //TODO: Warning, could contain sensitive data
-		Msg("Formatting and mounting volume")
+	klog.V(3).InfoS("Formatting and mounting volume",
+		"method", "NodeStageVolume", "volumeID", volumeID, "devicePath", devicePath,
+		"stagingTargetPath", stagingTargetPath, "fsType", fsType)
 
 	if _, err := os.Stat(stagingTargetPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(stagingTargetPath, 0775); err != nil {
+			klog.V(0).ErrorS(err, "Failed to create staging target path",
+				"method", "NodeStageVolume", "stagingTargetPath", stagingTargetPath)
 			return nil, status.Errorf(codes.Internal,
 				"failed to create staging target path %s: %v", stagingTargetPath, err)
 		}
@@ -175,25 +167,21 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 
 	err = ns.mounter.FormatAndMount(devicePath, stagingTargetPath, fsType, mountFlags)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("source", devicePath).
-			Str("stagingTargetPath", stagingTargetPath).
-			Str("fsType", fsType).
-			//Strs("mountFlags", mountFlags). //TODO: Warning, could contain sensitive data
-			Msg("Failed to format and mount volume")
+		klog.V(0).ErrorS(err, "Failed to format and mount volume",
+			"method", "NodeStageVolume", "devicePath", devicePath,
+			"stagingTargetPath", stagingTargetPath, "fsType", fsType)
 		return nil, status.Errorf(codes.Internal, "failed to format and mount volume: %s", err)
 	}
 
-	log.Info().Msg("Volume staged successfully")
+	klog.V(1).InfoS("Volume staged successfully",
+		"method", "NodeStageVolume", "volumeID", volumeID, "devicePath", devicePath,
+		"stagingTargetPath", stagingTargetPath, "fsType", fsType)
 
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 
 func (ns *NodeServer) NodeUnstageVolume(_ context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	log.Debug().
-		Str("args", protosanitizer.StripSecrets(req).String()).
-		Msg("NodeUnstageVolume called")
+	klog.V(1).InfoS("NodeUnstageVolume called", "req", protosanitizer.StripSecrets(req).String())
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -205,34 +193,25 @@ func (ns *NodeServer) NodeUnstageVolume(_ context.Context, req *csi.NodeUnstageV
 		return nil, status.Error(codes.InvalidArgument, "staging target path is required")
 	}
 
-	log.Info().
-		Str("volumeID", volumeID).
-		Str("stagingTargetPath", stagingTargetPath).
-		Msg("Cleaning staging target path volume mount point")
+	klog.V(3).InfoS("Cleaning staging target path volume mount point",
+		"method", "NodeUnstageVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath)
 
 	err := mount.CleanupMountPoint(stagingTargetPath, ns.mounter, true)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("volumeID", volumeID).
-			Str("stagingTargetPath", stagingTargetPath).
-			Msg("Failed to clean mount point of staging target path")
-		return nil, status.Error(codes.Internal, "failed to clean mount point of staging target path")
+		klog.V(0).ErrorS(err, "Failed to clean mount point of staging target path",
+			"method", "NodeUnstageVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath)
+		return nil, status.Error(codes.Internal, "failed to cleanup mount point of staging target path")
 	}
 
-	log.Info().
-		Str("volumeID", volumeID).
-		Str("stagingTargetPath", stagingTargetPath).
-		Msg("Volume unmounted successfully")
+	klog.V(1).InfoS("Volume unstaged successfully",
+		"method", "NodeUnstageVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath)
 
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
 func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 
-	log.Debug().
-		Str("args", protosanitizer.StripSecrets(req).String()).
-		Msg("NodePublishVolume called")
+	klog.V(1).InfoS("NodePublishVolume called", "req", protosanitizer.StripSecrets(req).String())
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -258,14 +237,16 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
 	//TODO: Check if the volume with volumeID exists
 	// If not, return 5 NOT_FOUND error
 
-	log.Info().
-		Str("volumeID", volumeID).
-		Str("stagingTargetPath", stagingTargetPath).
-		Str("targetPath", targetPath).
-		Msg("Publishing volume")
+	klog.V(3).InfoS("Publishing volume",
+		"method", "NodePublishVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath,
+		"targetPath", targetPath)
 
 	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		//TODO: Review permissions
 		if err := os.MkdirAll(targetPath, 0750); err != nil {
+			klog.V(0).ErrorS(err, "Failed to create target path",
+				"method", "NodePublishVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath,
+				"targetPath", targetPath)
 			return nil, status.Errorf(codes.Internal,
 				"failed to create target path %s: %v", targetPath, err)
 		}
@@ -276,27 +257,40 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
 		options = append(options, "ro")
 	}
 
+	var err error
+	var resp *csi.NodePublishVolumeResponse
 	accessType := volumeCapability.GetAccessType()
 	switch accessType.(type) {
 	case *csi.VolumeCapability_Block:
-		return ns.handleBlockVolumePublish(stagingTargetPath, targetPath, volumeCapability, options)
+		resp, err = ns.handleBlockVolumePublish(stagingTargetPath, targetPath, volumeCapability, options)
 	case *csi.VolumeCapability_Mount:
-		return ns.handleMountVolumePublish(stagingTargetPath, targetPath, volumeCapability, options)
+		resp, err = ns.handleMountVolumePublish(stagingTargetPath, targetPath, volumeCapability, options)
 	default:
+		klog.V(0).ErrorS(nil, "Unsupported access type for volume capability",
+			"method", "NodePublishVolume", "volumeID", volumeID, "accessType", accessType)
 		return nil, status.Error(codes.InvalidArgument, "unsupported access type for volume capability")
 	}
+
+	if err != nil {
+		klog.V(0).ErrorS(err, "Failed to publish volume",
+			"method", "NodePublishVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath,
+			"targetPath", targetPath, "accessType", reflect.TypeOf(accessType).String())
+		return nil, status.Error(codes.Internal, "failed to publish volume")
+	}
+
+	klog.V(1).InfoS("Volume published successfully",
+		"method", "NodePublishVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath, "targetPath", targetPath)
+
+	return resp, nil
 }
 
 func (ns NodeServer) handleBlockVolumePublish(stagingPath, targetPath string, volumeCapability *csi.VolumeCapability, options []string) (*csi.NodePublishVolumeResponse, error) {
 
 	checkMountPoint, err := ns.checkMountPoint(stagingPath, targetPath, volumeCapability)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("stagingPath", stagingPath).
-			Str("targetPath", targetPath).
-			Msg("Failed to check mount point")
-		return nil, status.Error(codes.Internal, "failed to check mount point")
+		klog.V(0).ErrorS(err, "Failed to check mount point",
+			"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
+		return nil, fmt.Errorf("failed to check mount point: %w", err)
 	}
 
 	//volume is already mounted at targetPath
@@ -304,31 +298,20 @@ func (ns NodeServer) handleBlockVolumePublish(stagingPath, targetPath string, vo
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
-	log.Info().
-		Str("stagingPath", stagingPath).
-		Str("targetPath", targetPath).
-		Msg("Mounting block volume at target path")
-
-	// TODO: Create the target path if it does not exist?
+	klog.V(3).InfoS("Mounting block volume at target path",
+		"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
 
 	// mount the device at the target path
 	fsType := "" // Block volumes do not require a filesystem type
 	err = ns.mounter.Mount(stagingPath, targetPath, fsType, options)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("stagingPath", stagingPath).
-			Str("targetPath", targetPath).
-			Msg("Failed to mount device at target path")
-		return nil, status.Error(codes.Internal, "failed to mount device at target path")
+		klog.V(0).ErrorS(err, "Failed to mount device at target path",
+			"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
+		return nil, fmt.Errorf("failed to mount device at target path: %w", err)
 	}
 
-	log.Info().
-		Str("stagingPath", stagingPath).
-		Str("targetPath", targetPath).
-		Msg("Block volume successfully mounted at target path")
-
-	//TODO: check if volume is incompatible with the volume capability
+	klog.V(3).InfoS("Block volume successfully mounted at target path",
+		"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }
@@ -337,16 +320,15 @@ func (ns NodeServer) handleMountVolumePublish(stagingPath, targetPath string, vo
 
 	checkMountPoint, err := ns.checkMountPoint(stagingPath, targetPath, volumeCapability)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("stagingPath", stagingPath).
-			Str("targetPath", targetPath).
-			Msg("Failed to check mount point")
-		return nil, status.Error(codes.Internal, "failed to check mount point")
+		klog.V(0).ErrorS(err, "Failed to check mount point",
+			"method", "handleMountVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
+		return nil, fmt.Errorf("failed to check mount point: %w", err)
 	}
 
 	//volume is already mounted at targetPath
 	if checkMountPoint.targetIsMountPoint {
+		klog.V(3).InfoS("Volume is already mounted at target path",
+			"method", "handleMountVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
@@ -360,38 +342,28 @@ func (ns NodeServer) handleMountVolumePublish(stagingPath, targetPath string, vo
 		fsType = defaultFSType
 	}
 
-	log.Info().
-		Str("nodeId", ns.Driver.nodeID).
-		Str("stagingPath", stagingPath).
-		Str("targetPath", targetPath).
-		Str("fsType", fsType).
-		Str("mountFlags", fmt.Sprintf("%v", options)).
-		Msg("Mounting file system volume at target path")
+	klog.V(3).InfoS("Mounting file system volume at target path",
+		"method", "handleMountVolumePublish", "nodeId", ns.Driver.nodeID, "stagingPath", stagingPath,
+		"targetPath", targetPath, "fsType", fsType, "mountFlags", fmt.Sprintf("%v", options))
 
 	err = ns.mounter.Mount(stagingPath, targetPath, fsType, options)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("nodeId", ns.Driver.nodeID).
-			Str("stagingPath", stagingPath).
-			Str("targetPath", targetPath).
-			Str("fsType", fsType).
-			Str("options", fmt.Sprintf("%v", options)).
-			//Strs("mountFlags", mountFlags). //TODO: Warning, could contain sensitive data
-			Msg("Failed to mount file system volume at target path")
+		klog.V(0).ErrorS(err, "Failed to mount file system volume at target path",
+			"method", "handleMountVolumePublish", "nodeId", ns.Driver.nodeID,
+			"stagingPath", stagingPath, "targetPath", targetPath, "fsType", fsType,
+			"options", fmt.Sprintf("%v", options))
 		return nil, status.Error(codes.Internal, "failed to mount file system volume at target path")
 	}
 
-	log.Info().
-		Str("nodeId", ns.Driver.nodeID).
-		Str("stagingPath", stagingPath).
-		Str("targetPath", targetPath).
-		Msg("File system volume successfully mounted at target path")
+	klog.V(3).InfoS("File system volume successfully mounted at target path",
+		"method", "handleMountVolumePublish", "nodeId", ns.Driver.nodeID, "stagingPath", stagingPath,
+		"targetPath", targetPath, "fsType", fsType, "mountFlags", fmt.Sprintf("%v", options))
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
 func (ns *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+	klog.V(1).InfoS("NodeUnpublishVolume called", "req", protosanitizer.StripSecrets(req).String())
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -405,25 +377,18 @@ func (ns *NodeServer) NodeUnpublishVolume(_ context.Context, req *csi.NodeUnpubl
 
 	//TODO: Check if the volume with volumeID exists
 
-	log.Info().
-		Str("volumeID", volumeID).
-		Str("targetPath", targetPath).
-		Msg("Unpublishing volume")
+	klog.V(3).InfoS("Unpublishing volume",
+		"volumeID", volumeID, "targetPath", targetPath)
 
 	err := mount.CleanupMountPoint(targetPath, ns.mounter, true)
 	if err != nil {
-		log.Error().
-			Err(err).
-			Str("volumeID", volumeID).
-			Str("targetPath", targetPath).
-			Msg("Failed to unmount volume at target path")
+		klog.V(0).ErrorS(err, "Failed to unmount volume at target path",
+			"method", "NodeUnpublishVolume", "volumeID", volumeID, "targetPath", targetPath)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("failed to unmount volume at target path %s: %v", targetPath, err))
 	}
 
-	log.Info().
-		Str("volumeID", volumeID).
-		Str("targetPath", targetPath).
-		Msg("Volume successfully unpublished from target path")
+	klog.V(1).InfoS("Volume successfully unpublished from target path",
+		"method", "NodeUnpublishVolume", "volumeID", volumeID, "targetPath", targetPath)
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
@@ -441,6 +406,8 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 }
 
 func (ns *NodeServer) NodeGetCapabilities(_ context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+	klog.V(1).InfoS("NodeGetCapabilities called", "req", protosanitizer.StripSecrets(req).String())
+
 	capabilities := []*csi.NodeServiceCapability{
 		{
 			Type: &csi.NodeServiceCapability_Rpc{
@@ -453,19 +420,17 @@ func (ns *NodeServer) NodeGetCapabilities(_ context.Context, req *csi.NodeGetCap
 		//TODO: implement and add NodeServiceCapability_RPC_GET_VOLUME_STATS capability
 	}
 
-	log.Info().
-		Msg("NodeGetCapabilities called")
-
 	return &csi.NodeGetCapabilitiesResponse{Capabilities: capabilities}, nil
 }
 
 func (ns *NodeServer) NodeGetInfo(_ context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+	klog.V(1).InfoS("NodeGetInfo called", "req", protosanitizer.StripSecrets(req).String())
+
 	nodeId := ns.Driver.nodeID
 	maxVolumesPerNode := ns.Driver.maxVolumesPerNode
-	log.Info().
-		Str("nodeId", nodeId).
-		Int("maxVolumesPerNode", int(maxVolumesPerNode)).
-		Msg("NodeGetInfo called")
+
+	klog.V(3).InfoS("Returning node info",
+		"nodeId", nodeId, "maxVolumesPerNode", maxVolumesPerNode)
 
 	return &csi.NodeGetInfoResponse{
 		NodeId:            nodeId,
@@ -496,11 +461,9 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 	for _, mp := range mountPoints {
 		if mp.Path == targetPath {
 			foundMountPoint = mp
-			log.Info().
-				Str("srcPath", srcPath).
-				Str("targetPath", targetPath).
-				Str("foundMountPoint", fmt.Sprintf("%+v", mp)).
-				Msg("Found mount point matching target path")
+			klog.V(5).InfoS("Found mount point matching target path",
+				"method", "checkMountPoint", "srcPath", srcPath, "targetPath", targetPath,
+				"foundMountPoint", fmt.Sprintf("%+v", mp))
 			break
 		}
 	}
@@ -512,12 +475,11 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 		}
 	}
 
-	log.Info().
-		Str("srcPath", srcPath).
-		Str("targetPath", targetPath).
-		Bool("targetIsMountPoint", mountPointMatch.targetIsMountPoint).
-		Bool("deviceIsMounted", mountPointMatch.deviceIsMounted).
-		Msg("Mount point check results")
+	klog.V(5).InfoS("Mount point check results",
+		"srcPath", srcPath,
+		"targetPath", targetPath,
+		"targetIsMountPoint", mountPointMatch.targetIsMountPoint,
+		"deviceIsMounted", mountPointMatch.deviceIsMounted)
 
 	//if volumeCapability is nil, skip volume capability checks
 	if volumeCapability == nil {
@@ -529,10 +491,8 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 	case *csi.VolumeCapability_Mount:
 		// Check if the filesystem type matches
 		fsType := accessType.Mount.GetFsType()
-		log.Info().
-			Str("fsType", fsType).
-			Str("foundMountPointType", foundMountPoint.Type).
-			Msg("Checking filesystem type for mount point compatibility")
+		klog.V(5).InfoS("Checking filesystem type for mount point compatibility",
+			"fsType", fsType, "foundMountPointType", foundMountPoint.Type)
 		if len(fsType) == 0 || foundMountPoint.Type == fsType {
 			mountPointMatch.fsTypeMatches = true
 		}
@@ -553,15 +513,15 @@ func (ns *NodeServer) checkMountPoint(srcPath string, targetPath string, volumeC
 		mountPointMatch.compatibleWithVolumeCapability = false
 	}
 
-	log.Info().
-		Str("srcPath", srcPath).
-		Str("targetPath", targetPath).
-		Bool("targetIsMountPoint", mountPointMatch.targetIsMountPoint).
-		Bool("deviceIsMounted", mountPointMatch.deviceIsMounted).
-		Bool("fsTypeMatches", mountPointMatch.fsTypeMatches).
-		Bool("volumeCapabilitySupported", mountPointMatch.volumeCapabilitySupported).
-		Bool("compatibleWithVolumeCapability", mountPointMatch.compatibleWithVolumeCapability).
-		Msg("Mount point check results")
+	klog.V(5).InfoS("Mount point check results",
+		"srcPath", srcPath,
+		"targetPath", targetPath,
+		"targetIsMountPoint", mountPointMatch.targetIsMountPoint,
+		"deviceIsMounted", mountPointMatch.deviceIsMounted,
+		"fsTypeMatches", mountPointMatch.fsTypeMatches,
+		"volumeCapabilitySupported", mountPointMatch.volumeCapabilitySupported,
+		"compatibleWithVolumeCapability", mountPointMatch.compatibleWithVolumeCapability,
+	)
 
 	return mountPointMatch, nil
 }

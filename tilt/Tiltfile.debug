@@ -36,8 +36,8 @@ docker_build_with_restart(
         '--headless=true',
         'exec',
         '/app/opennebula-csi-plugin',
-        '--continue',
-        '--accept-multiclient',
+        #'--continue',
+        #'--accept-multiclient',
         '--'
     ],
 )

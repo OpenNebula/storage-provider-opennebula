@@ -16,7 +16,7 @@
 # CSI Plugin image
 ##
 
-FROM alpine AS opennebula-csi-plugin
+FROM alpine:3.22 AS opennebula-csi-plugin
 
 WORKDIR /app
 COPY tilt/build/opennebula-csi-plugin .

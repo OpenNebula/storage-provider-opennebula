@@ -32,4 +32,4 @@ RUN chmod +x /app/opennebula-csi-plugin
 
 EXPOSE ${DEBUG_PORT}
 
-ENTRYPOINT ["dlv", "--listen=0.0.0.0:${DEBUG_PORT}", "--api-version=2", "--headless=true", "exec", "/app/opennebula-csi-plugin", "--continue", "--accept-multiclient" , "--"]
+ENTRYPOINT ["dlv", "--listen=0.0.0.0:${DEBUG_PORT}", "--api-version=2", "--headless=true", "exec", "/app/opennebula-csi-plugin", "--"]

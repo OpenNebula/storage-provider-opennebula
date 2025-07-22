@@ -23,6 +23,10 @@ install -m u=rw,go=r -D /dev/fd/0 /etc/containerd/certs.d/$(LOCAL_REGISTRY)/host
   skip_verify = true
 EOF
 systemctl restart containerd
+cd ~ && curl -LO https://go.dev/dl/go1.24.0.linux-amd64.tar.gz && sudo rm -rf /usr/local/go && tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz && echo "export PATH=$$PATH:/usr/local/go/bin" >> ~/.bashrc && source ~/.bashrc
+apt update && apt install -y make
+git clone https://github.com/kubernetes-csi/csi-test.git ~/csi-test
+cd ~/csi-test/cmd/csi-sanity && export PATH=$$PATH:/usr/local/go/bin && export GOCACHE=/tmp/go-build-cache && make
 endef
 
 define CLUSTER_NODES_USERDATA_BASE64
@@ -174,25 +178,25 @@ workload-cluster-flannel: $(CLUSTERCTL) $(KUBECTL)
 	@$(KUBECTL) --kubeconfig <($(CLUSTERCTL) get kubeconfig $(WORKLOAD_CLUSTER_NAME)) \
 		apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
 
-workload-cluster-kubeconfig: $(KUBECTL)
+workload-cluster-kubeconfig: $(CLUSTERCTL)
 	$(CLUSTERCTL) get kubeconfig $(WORKLOAD_CLUSTER_NAME) > $(WORKLOAD_CLUSTER_KUBECONFIG)
 
 workload-cluster-destroy: $(HELM)
 	$(HELM) uninstall $(WORKLOAD_CLUSTER_NAME)
 
-tilt-up: $(TILT) $(KUBECTL) workload-cluster-kubeconfig
+tilt-up: $(TILT) $(CLUSTERCTL) $(KUBECTL) workload-cluster-kubeconfig
 	export KUBECONFIG=$(WORKLOAD_CLUSTER_KUBECONFIG) && $(TILT) up --file $(SELF)/tilt/Tiltfile
 
 tilt-down: $(TILT)
 	$(TILT) down --file $(SELF)/tilt/Tiltfile
 
-tilt-up-debug: $(TILT) $(KUBECTL) workload-cluster-kubeconfig
+tilt-up-debug: $(TILT) $(CLUSTERCTL) $(KUBECTL) workload-cluster-kubeconfig
 	export KUBECONFIG=$(WORKLOAD_CLUSTER_KUBECONFIG) && $(TILT) up --file $(SELF)/tilt/Tiltfile.debug
 
 tilt-down-debug: $(TILT)
 	$(TILT) down --file $(SELF)/tilt/Tiltfile.debug
 
-tilt-clean: $(TILT)
+tilt-clean:
 	rm --preserve-root -rf $(SELF)/tilt/build
 
 # Dependencies

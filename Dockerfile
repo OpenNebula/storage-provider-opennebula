@@ -33,6 +33,7 @@ RUN go mod download
 COPY cmd/ cmd/
 COPY pkg/ pkg/
 
+
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
@@ -64,10 +65,11 @@ ENTRYPOINT ["/opennebula-cloud-controller-manager"]
 # CSI Plugin image
 ##
 
-FROM gcr.io/distroless/static:nonroot AS opennebula-csi-plugin
+FROM alpine:3.22 AS opennebula-csi-plugin
 WORKDIR /app
-COPY --from=builder /workspace/opennebula-csi-plugin .
 
 RUN apk add --no-cache e2fsprogs util-linux
+
+COPY --from=builder /workspace/opennebula-csi-plugin .
 
 ENTRYPOINT ["/app/opennebula-csi-plugin"]

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/OpenNebula/one/src/oca/go/src/goca"
+	"github.com/OpenNebula/one/src/oca/go/src/goca/parameters"
 	"github.com/OpenNebula/one/src/oca/go/src/goca/schemas/image"
 	img "github.com/OpenNebula/one/src/oca/go/src/goca/schemas/image"
 	imk "github.com/OpenNebula/one/src/oca/go/src/goca/schemas/image/keys"
@@ -31,9 +32,9 @@ import (
 )
 
 const (
-	owner_tag       = "OWNER"
-	size_conversion = 1024 * 1024
-	timeout         = 5 * time.Second
+	ownerTag       = "OWNER"
+	sizeConversion = 1024 * 1024
+	timeout        = 5 * time.Second
 )
 
 type PersistentDiskVolumeProvider struct {
@@ -59,7 +60,7 @@ func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name st
 	}
 
 	// size is in bytes and we need it in MB
-	sizeMB := size / size_conversion
+	sizeMB := size / sizeConversion
 	if sizeMB <= 0 {
 		return fmt.Errorf("invalid volume size: must be greater than 0 MB")
 	}
@@ -68,7 +69,7 @@ func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name st
 	tpl.Add(imk.Name, name)
 	tpl.Add(imk.Size, int(sizeMB))
 	tpl.Add(imk.Persistent, "YES")
-	tpl.AddPair(owner_tag, owner)
+	tpl.AddPair(ownerTag, owner)
 	tpl.Add(imk.Type, string(image.Datablock))
 
 	imageID, err := p.ctrl.Images().Create(tpl.String(), 1)
@@ -177,14 +178,35 @@ func (p *PersistentDiskVolumeProvider) DetachVolume(ctx context.Context, volume,
 	return fmt.Errorf("volume: %s not found on node %s", volume, node)
 }
 
-func (p *PersistentDiskVolumeProvider) ListVolumes(ctx context.Context, owner string) ([]string, error) {
-	images, err := p.ctrl.Images().Info()
+func (p *PersistentDiskVolumeProvider) ListVolumes(ctx context.Context, owner string, maxEntries int32, startingToken string) ([]string, error) {
+
+	listingParams := []int{parameters.PoolWhoAll, -1, -1}
+
+	if startingToken != "" {
+		startIndex, err := strconv.Atoi(startingToken)
+		if err != nil || startIndex < 0 {
+			return nil, fmt.Errorf("invalid starting token: %w", err)
+		}
+		listingParams[1] = -int(startIndex) //pagination offset
+	}
+
+	if maxEntries < 0 {
+		return nil, fmt.Errorf("maxEntries must be non-negative")
+	}
+
+	if maxEntries > 0 {
+		listingParams[2] = int(maxEntries) // page size
+	}
+
+	images, err := p.ctrl.Images().Info(listingParams...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list volumes: %w", err)
 	}
+
+	//Filter images by the owner tag
 	var volumeIDs []string
 	for _, img := range images.Images {
-		imageOwner, err := img.Template.Get(owner_tag)
+		imageOwner, err := img.Template.Get(ownerTag)
 		if err == nil && imageOwner == owner {
 			volumeIDs = append(volumeIDs, img.Name)
 		}
@@ -214,7 +236,7 @@ func (p *PersistentDiskVolumeProvider) VolumeExists(ctx context.Context, volume 
 	if err != nil {
 		return -1, -1, fmt.Errorf("failed to get volume info: %w", err)
 	}
-	return imgID, (img.Size * size_conversion), nil
+	return imgID, (img.Size * sizeConversion), nil
 }
 
 func (p *PersistentDiskVolumeProvider) NodeExists(ctx context.Context, node string) (int, error) {

@@ -286,21 +286,28 @@ func (s *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *
 func (s *ControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	klog.V(1).InfoS("ListVolumes called", "req", protosanitizer.StripSecrets(req))
 
-	volumes, err := s.volumeProvider.ListVolumes(ctx, DefaultDriverName)
+	maxEntries := req.GetMaxEntries()
+	if maxEntries < 0 {
+		klog.V(0).ErrorS(nil, "Invalid max entries",
+			"method", "ListVolumes", "maxEntries", maxEntries)
+		return nil, status.Error(codes.Aborted, "invalid max_entries")
+	}
+
+	startingToken := req.GetStartingToken()
+	if startingToken != "" {
+		startIndex, err := strconv.Atoi(startingToken)
+		if err != nil || startIndex < 0 {
+			klog.V(0).ErrorS(err, "Invalid starting token",
+				"method", "ListVolumes", "startingToken", startingToken)
+			return nil, status.Error(codes.Aborted, "invalid starting_token")
+		}
+	}
+
+	volumes, err := s.volumeProvider.ListVolumes(ctx, DefaultDriverName, maxEntries, startingToken)
 	if err != nil {
 		klog.V(0).ErrorS(err, "Failed to list volumes",
 			"method", "ListVolumes", "error", err.Error())
 		return nil, status.Error(codes.Internal, "failed to list volumes")
-	}
-
-	token := req.GetStartingToken()
-	if token != "" {
-		startIndex, err := strconv.Atoi(token)
-		if err != nil || startIndex < 0 || startIndex >= len(volumes) {
-			klog.V(0).ErrorS(err, "Invalid starting token",
-				"method", "ListVolumes", "startingToken", token)
-			return nil, status.Error(codes.Aborted, "invalid starting_token")
-		}
 	}
 
 	entries := make([]*csi.ListVolumesResponse_Entry, 0, len(volumes))

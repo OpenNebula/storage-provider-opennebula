@@ -40,7 +40,7 @@ type OpenNebulaVolumeProvider interface {
 	DeleteVolume(ctx context.Context, volume string) error
 	AttachVolume(ctx context.Context, volume string, node string) error
 	DetachVolume(ctx context.Context, volume string, node string) error
-	ListVolumes(ctx context.Context, volume string) ([]string, error)
+	ListVolumes(ctx context.Context, owner string, maxEntries int32, startingToken string) ([]string, error)
 	GetCapacity(ctx context.Context) (int64, error)
 	VolumeExists(ctx context.Context, volume string) (int, int, error)
 	NodeExists(ctx context.Context, node string) (int, error)

@@ -72,7 +72,7 @@ func TestPersistentDiskLifecycle(t *testing.T) {
 	// Sleep to allow the volume to be ready
 	time.Sleep(5 * time.Second)
 
-	volumes, err := volumeProvider.ListVolumes(ctx, testDriverName)
+	volumes, err := volumeProvider.ListVolumes(ctx, testDriverName, -1, "")
 	if err != nil {
 		t.Fatalf("failed to list volumes: %v", err)
 	}

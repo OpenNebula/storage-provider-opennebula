@@ -6,6 +6,8 @@ github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cq
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/OpenNebula/one/src/oca/go/src/goca v0.0.0-20241029141545-0bd451171fb6 h1:YbqDFcJP645B+9qU5lYFe3lXVh9STBQhk/BNvAyPRuU=
 github.com/OpenNebula/one/src/oca/go/src/goca v0.0.0-20241029141545-0bd451171fb6/go.mod h1:dvAwZi1Aol7eu6BENzHtl8ztGBkacB9t/fJj+fYk+Xg=
+github.com/OpenNebula/one/src/oca/go/src/goca v0.0.0-20250724115753-099f00ab9435 h1:inCkvuMt6zzGgUORK2nzuaj17SkbV9MBuc38IfG/vCM=
+github.com/OpenNebula/one/src/oca/go/src/goca v0.0.0-20250724115753-099f00ab9435/go.mod h1:dvAwZi1Aol7eu6BENzHtl8ztGBkacB9t/fJj+fYk+Xg=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=

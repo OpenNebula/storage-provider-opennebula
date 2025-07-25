@@ -77,6 +77,7 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 				Volume: &csi.Volume{
 					VolumeId:      req.Name,
 					CapacityBytes: requiredBytes,
+					VolumeContext: req.GetParameters(), //pass request parameters as volume context
 				},
 			}, nil
 		} else {
@@ -87,9 +88,11 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		}
 	}
 
+	params := req.GetParameters()
+
 	klog.V(3).InfoS("Creating new volume", "volumeName", req.Name, "requiredBytes", requiredBytes)
 
-	err := s.volumeProvider.CreateVolume(ctx, req.Name, requiredBytes, DefaultDriverName)
+	err := s.volumeProvider.CreateVolume(ctx, req.Name, requiredBytes, DefaultDriverName, params)
 	if err != nil {
 		klog.V(0).ErrorS(err, "Failed to create volume",
 			"method", "CreateVolume", "volumeName", req.Name, "requiredBytes", requiredBytes, "defaultDriverName", DefaultDriverName)
@@ -103,6 +106,7 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		Volume: &csi.Volume{
 			VolumeId:      req.Name,
 			CapacityBytes: requiredBytes,
+			VolumeContext: req.GetParameters(), //pass request parameters as volume context
 		},
 	}, nil
 }
@@ -170,9 +174,11 @@ func (s *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi
 
 	// TODO: Validate VolumeCapability
 
+	params := req.GetVolumeContext()
+
 	klog.V(3).InfoS("Attaching volume to node",
 		"method", "ControllerPublishVolume", "volumeID", volumeID, "nodeID", nodeID)
-	err = s.volumeProvider.AttachVolume(ctx, req.VolumeId, req.NodeId)
+	err = s.volumeProvider.AttachVolume(ctx, req.VolumeId, req.NodeId, params)
 	if err != nil {
 		klog.V(0).ErrorS(err, "Failed to attach volume",
 			"method", "ControllerPublishVolume", "volumeID", req.VolumeId, "nodeID", req.NodeId)

@@ -441,8 +441,8 @@ type MockOpenNebulaVolumeProviderTestify struct {
 	mock.Mock
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) CreateVolume(ctx context.Context, name string, size int64, owner string) error {
-	args := m.Called(ctx, name, size, owner)
+func (m *MockOpenNebulaVolumeProviderTestify) CreateVolume(ctx context.Context, name string, size int64, owner string, params map[string]string) error {
+	args := m.Called(ctx, name, size, owner, params)
 	return args.Error(0)
 }
 
@@ -451,8 +451,8 @@ func (m *MockOpenNebulaVolumeProviderTestify) DeleteVolume(ctx context.Context, 
 	return args.Error(0)
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) AttachVolume(ctx context.Context, volume string, node string) error {
-	args := m.Called(ctx, volume, node)
+func (m *MockOpenNebulaVolumeProviderTestify) AttachVolume(ctx context.Context, volume string, node string, params map[string]string) error {
+	args := m.Called(ctx, volume, node, params)
 	return args.Error(0)
 }
 
@@ -461,8 +461,8 @@ func (m *MockOpenNebulaVolumeProviderTestify) DetachVolume(ctx context.Context, 
 	return args.Error(0)
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) ListVolumes(ctx context.Context, volume string) ([]string, error) {
-	args := m.Called(ctx, volume)
+func (m *MockOpenNebulaVolumeProviderTestify) ListVolumes(ctx context.Context, volume string, maxEntries int32, startingToken string) ([]string, error) {
+	args := m.Called(ctx, volume, maxEntries, startingToken)
 	return args.Get(0).([]string), args.Error(1)
 }
 

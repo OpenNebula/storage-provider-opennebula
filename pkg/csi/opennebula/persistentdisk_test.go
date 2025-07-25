@@ -62,8 +62,12 @@ func TestPersistentDiskLifecycle(t *testing.T) {
 
 	ctx := context.Background()
 
+	params := map[string]string{
+		"devPrefix": "vd",
+	}
+
 	volumeTestName := fmt.Sprintf("%s-%s", volumeName, uuid.New().String())
-	err = volumeProvider.CreateVolume(ctx, volumeTestName, volumeSize, testDriverName)
+	err = volumeProvider.CreateVolume(ctx, volumeTestName, volumeSize, testDriverName, params)
 	if err != nil {
 		t.Fatalf("failed to create volume: %v", err)
 	}

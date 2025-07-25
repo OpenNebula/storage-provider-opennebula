@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.5
 
 require (
-	github.com/OpenNebula/one/src/oca/go/src/goca v0.0.0-20241029141545-0bd451171fb6
+	github.com/OpenNebula/one/src/oca/go/src/goca v0.0.0-20250724115753-099f00ab9435
 	github.com/container-storage-interface/spec v1.11.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/google/uuid v1.6.0

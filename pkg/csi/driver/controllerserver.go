@@ -29,12 +29,20 @@ import (
 	"k8s.io/klog/v2"
 )
 
-var controllerCapabilityTypes = []csi.ControllerServiceCapability_RPC_Type{
-	csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
-	csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
-	csi.ControllerServiceCapability_RPC_GET_CAPACITY,
-}
+var (
+	controllerCapabilityTypes = []csi.ControllerServiceCapability_RPC_Type{
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+		csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+	}
+
+	supportedAccessModes = []csi.VolumeCapability_AccessMode_Mode{
+		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
+	}
+)
 
 type ControllerServer struct {
 	driver         *Driver
@@ -52,13 +60,15 @@ func NewControllerServer(d *Driver, vp opennebula.OpenNebulaVolumeProvider) *Con
 func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(1).InfoS("CreateVolume called", "req", protosanitizer.StripSecrets(req))
 
-	if req.Name == "" {
+	name := req.GetName()
+	if name == "" {
 		klog.V(0).ErrorS(nil, "method", "CreateVolume", "CreateVolume called with empty volume name")
 		return nil, status.Error(codes.InvalidArgument, "missing volume name")
 	}
 
-	if len(req.VolumeCapabilities) == 0 {
-		klog.V(0).ErrorS(nil, "method", "CreateVolume", "CreateVolume called with empty volume capabilities")
+	volumeCapabilities := req.GetVolumeCapabilities()
+	if len(volumeCapabilities) == 0 {
+		klog.V(0).ErrorS(nil, "method", "CreateVolume", "CreateVolume called with empty or nil volume capabilities")
 		return nil, status.Error(codes.InvalidArgument, "missing volume capabilities")
 	}
 
@@ -67,48 +77,57 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		requiredBytes = DefaultVolumeSizeBytes
 	}
 
-	volumeID, volumeSize, _ := s.volumeProvider.VolumeExists(ctx, req.Name)
+	if err := validateAccessMode(volumeCapabilities); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "unsupported access mode")
+	}
 
+	accessMode := volumeCapabilities[0].GetAccessMode()
+	if accessMode == nil {
+		klog.V(0).ErrorS(nil, "method", "CreateVolume", "CreateVolume called with empty access mode")
+		return nil, status.Error(codes.InvalidArgument, "missing access mode")
+	}
+
+	response := &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      name,
+			CapacityBytes: requiredBytes,
+			VolumeContext: req.GetParameters(),
+		},
+	}
+
+	volumeID, volumeSize, _ := s.volumeProvider.VolumeExists(ctx, name)
 	if volumeID != -1 {
 		if int64(volumeSize) == requiredBytes {
 			klog.V(3).InfoS("Volume already exists with the same size",
 				"method", "CreateVolume", "volumeID", volumeID, "requiredSize", requiredBytes)
-			return &csi.CreateVolumeResponse{
-				Volume: &csi.Volume{
-					VolumeId:      req.Name,
-					CapacityBytes: requiredBytes,
-					VolumeContext: req.GetParameters(), //pass request parameters as volume context
-				},
-			}, nil
-		} else {
-			klog.V(0).ErrorS(nil, "Volume with the same name already exists with different size",
-				"method", "CreateVolume", "volumeID", volumeID, "existingSize", volumeSize, "requiredSize", requiredBytes)
-			return nil, status.Error(codes.AlreadyExists,
-				"volume with the same name already exists with different size")
+			return response, nil
 		}
+		klog.V(0).ErrorS(nil, "Volume with the same name already exists with different size",
+			"method", "CreateVolume", "volumeID", volumeID, "existingSize", volumeSize, "requiredSize", requiredBytes)
+		return nil, status.Error(codes.AlreadyExists,
+			"volume with the same name already exists with different size")
+
 	}
 
 	params := req.GetParameters()
+	fsType := volumeCapabilities[0].GetMount().GetFsType()
+	immutableVolume := accessMode.Mode == csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY
 
-	klog.V(3).InfoS("Creating new volume", "volumeName", req.Name, "requiredBytes", requiredBytes)
-
-	err := s.volumeProvider.CreateVolume(ctx, req.Name, requiredBytes, DefaultDriverName, params)
+	err := s.volumeProvider.CreateVolume(ctx, name, requiredBytes, DefaultDriverName, immutableVolume, fsType, params)
 	if err != nil {
 		klog.V(0).ErrorS(err, "Failed to create volume",
-			"method", "CreateVolume", "volumeName", req.Name, "requiredBytes", requiredBytes, "defaultDriverName", DefaultDriverName)
+			"method", "CreateVolume", "volumeName", name, "requiredBytes", requiredBytes,
+			"defaultDriverName", DefaultDriverName, "immutableVolume", immutableVolume,
+			"params", params)
 		return nil, status.Error(codes.Internal, "failed to create volume")
 	}
 
 	klog.V(1).InfoS("Volume created successfully",
-		"method", "CreateVolume", "volumeName", req.Name, "requiredBytes", requiredBytes)
+		"method", "CreateVolume", "volumeName", name, "requiredBytes",
+		requiredBytes, "defaultDriverName", DefaultDriverName, "immutableVolume", immutableVolume,
+		"params", params)
 
-	return &csi.CreateVolumeResponse{
-		Volume: &csi.Volume{
-			VolumeId:      req.Name,
-			CapacityBytes: requiredBytes,
-			VolumeContext: req.GetParameters(), //pass request parameters as volume context
-		},
-	}, nil
+	return response, nil
 }
 
 func (s *ControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
@@ -149,6 +168,13 @@ func (s *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi
 		return nil, status.Error(codes.InvalidArgument, "missing volume capability")
 	}
 
+	if req.VolumeCapability.AccessMode == nil {
+		klog.V(0).ErrorS(nil, "method", "ControllerPublishVolume", "ControllerPublishVolume called with empty access mode")
+		return nil, status.Error(codes.InvalidArgument, "missing access mode")
+	}
+
+	immutableVolume := req.VolumeCapability.AccessMode.Mode == csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY
+
 	volumeID, _, err := s.volumeProvider.VolumeExists(ctx, req.VolumeId)
 	if err != nil || volumeID == -1 {
 		klog.V(0).ErrorS(err, "Volume does not exist", "method", "ControllerPublishVolume", "volumeID", req.VolumeId)
@@ -175,10 +201,9 @@ func (s *ControllerServer) ControllerPublishVolume(ctx context.Context, req *csi
 	// TODO: Validate VolumeCapability
 
 	params := req.GetVolumeContext()
-
 	klog.V(3).InfoS("Attaching volume to node",
 		"method", "ControllerPublishVolume", "volumeID", volumeID, "nodeID", nodeID)
-	err = s.volumeProvider.AttachVolume(ctx, req.VolumeId, req.NodeId, params)
+	err = s.volumeProvider.AttachVolume(ctx, req.VolumeId, req.NodeId, immutableVolume, params)
 	if err != nil {
 		klog.V(0).ErrorS(err, "Failed to attach volume",
 			"method", "ControllerPublishVolume", "volumeID", req.VolumeId, "nodeID", req.NodeId)
@@ -269,14 +294,11 @@ func (s *ControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *
 			"method", "ValidateVolumeCapabilities", "volumeID", req.VolumeId)
 		return nil, status.Error(codes.NotFound, "volume not found")
 	}
-	supportedModes := map[csi.VolumeCapability_AccessMode_Mode]bool{
-		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER: true,
-	}
 
-	for _, cap := range req.VolumeCapabilities {
-		if cap.AccessMode == nil || !supportedModes[cap.AccessMode.Mode] {
-			return &csi.ValidateVolumeCapabilitiesResponse{}, nil
-		}
+	if err := validateAccessMode(req.VolumeCapabilities); err != nil {
+		klog.V(0).ErrorS(err, "Unsupported access mode",
+			"method", "ValidateVolumeCapabilities", "volumeID", req.VolumeId, "volumeCapabilities", req.VolumeCapabilities)
+		return nil, status.Error(codes.InvalidArgument, "unsupported access mode")
 	}
 
 	klog.V(1).InfoS("Volume capabilities validated successfully",
@@ -390,4 +412,19 @@ func (s *ControllerServer) testConnectivity() {
 	}
 	klog.V(3).InfoS("Successfully connected to OpenNebula",
 		"method", "testConnectivity", "endpoint", endpoint)
+}
+
+func validateAccessMode(volumeCapabilities []*csi.VolumeCapability) error {
+	supportedModes := make(map[csi.VolumeCapability_AccessMode_Mode]bool)
+	for _, mode := range supportedAccessModes {
+		supportedModes[mode] = true
+	}
+	for _, cap := range volumeCapabilities {
+		if cap.AccessMode == nil || !supportedModes[cap.AccessMode.Mode] {
+			klog.V(0).ErrorS(nil, "Unsupported access mode",
+				"method", "CreateVolume", "accessMode", cap.AccessMode.Mode)
+			return status.Error(codes.InvalidArgument, "unsupported access mode")
+		}
+	}
+	return nil
 }

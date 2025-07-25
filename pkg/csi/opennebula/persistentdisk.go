@@ -35,6 +35,7 @@ const (
 	ownerTag       = "OWNER"
 	sizeConversion = 1024 * 1024
 	timeout        = 5 * time.Second
+	fsTypeTag      = "FS"
 )
 
 type PersistentDiskVolumeProvider struct {
@@ -50,7 +51,7 @@ func NewPersistentDiskVolumeProvider(client *OpenNebulaClient) (*PersistentDiskV
 	}, nil
 }
 
-func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name string, size int64, owner string, params map[string]string) error {
+func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name string, size int64, owner string, immutable bool, fsType string, params map[string]string) error {
 	if name == "" {
 		return fmt.Errorf("volume name cannot be empty")
 	}
@@ -71,6 +72,12 @@ func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name st
 	tpl.Add(imk.Persistent, "YES")
 	tpl.AddPair(ownerTag, owner)
 	tpl.Add(imk.Type, string(image.Datablock))
+	if immutable {
+		tpl.Add(imk.PersistentType, "SHAREABLE")
+	}
+	if fsType != "" {
+		tpl.Add(fsTypeTag, fsType)
+	}
 
 	if params != nil && params["devPrefix"] != "" {
 		tpl.Add(imk.DevPrefix, params["devPrefix"])
@@ -112,7 +119,7 @@ func (p *PersistentDiskVolumeProvider) DeleteVolume(ctx context.Context, volume 
 	return nil
 }
 
-func (p *PersistentDiskVolumeProvider) AttachVolume(ctx context.Context, volume string, node string, params map[string]string) error {
+func (p *PersistentDiskVolumeProvider) AttachVolume(ctx context.Context, volume string, node string, immutable bool, params map[string]string) error {
 	nodeID, err := p.NodeExists(ctx, node)
 	if err != nil || nodeID == -1 {
 		return fmt.Errorf("failed to check if node exists: %w", err)
@@ -125,6 +132,9 @@ func (p *PersistentDiskVolumeProvider) AttachVolume(ctx context.Context, volume 
 	disk := shared.NewDisk()
 	disk.Add(shared.ImageID, volumeID)
 	addDiskParams(disk, params)
+	if immutable {
+		disk.Add("READONLY", "YES")
+	}
 
 	err = p.ctrl.VM(nodeID).DiskAttach(disk.String())
 	if err != nil {

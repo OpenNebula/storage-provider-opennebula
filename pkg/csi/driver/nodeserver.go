@@ -106,6 +106,15 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		fsType = defaultFSType
 	}
 
+	accessMode := volumeCapability.GetAccessMode().Mode
+	if accessMode == csi.VolumeCapability_AccessMode_UNKNOWN {
+		return nil, status.Error(codes.InvalidArgument, "access mode is required")
+	}
+
+	if accessMode == csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY {
+		mountFlags = append(mountFlags, "ro")
+	}
+
 	// Check if device path for volumeID exists
 	if _, err := os.Stat(devicePath); os.IsNotExist(err) {
 		klog.V(0).ErrorS(err, "Device path does not exist",

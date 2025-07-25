@@ -63,7 +63,7 @@ func TestCreateVolume(t *testing.T) {
 					{
 						AccessType: &csi.VolumeCapability_Mount{
 							Mount: &csi.VolumeCapability_MountVolume{
-								FsType: "ext4",
+								FsType: "",
 							},
 						},
 						AccessMode: &csi.VolumeCapability_AccessMode{
@@ -86,7 +86,7 @@ func TestCreateVolume(t *testing.T) {
 			setupMock: func(m *MockOpenNebulaVolumeProviderTestify) {
 				m.On("VolumeExists", mock.Anything, "test-volume").
 					Return(-1, -1, nil)
-				m.On("CreateVolume", mock.Anything, "test-volume", volumeSize, mock.Anything).
+				m.On("CreateVolume", mock.Anything, "test-volume", volumeSize, mock.Anything, false, "", map[string]string{"datastore": "default", "type": "BLOCK"}).
 					Return(nil)
 			},
 		},
@@ -231,7 +231,7 @@ func TestControllerPublishVolume(t *testing.T) {
 				m.On("VolumeExists", mock.Anything, "1234").Return(1, 1, nil)
 				m.On("NodeExists", mock.Anything, "test-node-id").Return(1, nil)
 				m.On("GetVolumeInNode", mock.Anything, 1, 1).Once().Return("", errors.New("volume not attached to node"))
-				m.On("AttachVolume", mock.Anything, "1234", "test-node-id").Return(nil)
+				m.On("AttachVolume", mock.Anything, "1234", "test-node-id", false, mock.Anything).Return(nil)
 				m.On("GetVolumeInNode", mock.Anything, 1, 1).Once().Return("attached-volume", nil)
 			},
 			expectResponse: &csi.ControllerPublishVolumeResponse{
@@ -285,7 +285,7 @@ func TestListVolumes(t *testing.T) {
 				MaxEntries: 10,
 			},
 			setupMock: func(m *MockOpenNebulaVolumeProviderTestify) {
-				m.On("ListVolumes", mock.Anything, "csi.opennebula.io").Return([]string{"1"}, nil)
+				m.On("ListVolumes", mock.Anything, "csi.opennebula.io", int32(10), "").Return([]string{"1"}, nil)
 			},
 			expectError: false,
 			expectResponse: &csi.ListVolumesResponse{
@@ -441,8 +441,8 @@ type MockOpenNebulaVolumeProviderTestify struct {
 	mock.Mock
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) CreateVolume(ctx context.Context, name string, size int64, owner string, params map[string]string) error {
-	args := m.Called(ctx, name, size, owner, params)
+func (m *MockOpenNebulaVolumeProviderTestify) CreateVolume(ctx context.Context, name string, size int64, owner string, immutable bool, fsType string, params map[string]string) error {
+	args := m.Called(ctx, name, size, owner, immutable, fsType, params)
 	return args.Error(0)
 }
 
@@ -451,8 +451,8 @@ func (m *MockOpenNebulaVolumeProviderTestify) DeleteVolume(ctx context.Context, 
 	return args.Error(0)
 }
 
-func (m *MockOpenNebulaVolumeProviderTestify) AttachVolume(ctx context.Context, volume string, node string, params map[string]string) error {
-	args := m.Called(ctx, volume, node, params)
+func (m *MockOpenNebulaVolumeProviderTestify) AttachVolume(ctx context.Context, volume string, node string, immutable bool, params map[string]string) error {
+	args := m.Called(ctx, volume, node, immutable, params)
 	return args.Error(0)
 }
 

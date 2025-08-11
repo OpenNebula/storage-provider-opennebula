@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -106,12 +107,12 @@ func (ns *NodeServer) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		fsType = defaultFSType
 	}
 
-	accessMode := volumeCapability.GetAccessMode().Mode
-	if accessMode == csi.VolumeCapability_AccessMode_UNKNOWN {
+	accessMode := volumeCapability.GetAccessMode()
+	if accessMode == nil || accessMode.Mode == csi.VolumeCapability_AccessMode_UNKNOWN {
 		return nil, status.Error(codes.InvalidArgument, "access mode is required")
 	}
 
-	if accessMode == csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY {
+	if accessMode.Mode == csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY {
 		mountFlags = append(mountFlags, "ro")
 	}
 
@@ -243,6 +244,12 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
 		return nil, status.Error(codes.InvalidArgument, "volume capability is required")
 	}
 
+	volumeContext := req.GetPublishContext()
+	volName := volumeContext["volumeName"]
+	if len(volName) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "volueName is required in volume context")
+	}
+
 	//TODO: Check if the volume with volumeID exists
 	// If not, return 5 NOT_FOUND error
 
@@ -250,14 +257,20 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
 		"method", "NodePublishVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath,
 		"targetPath", targetPath)
 
-	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+	targetDir := targetPath
+	accessType := volumeCapability.GetAccessType()
+	if _, ok := accessType.(*csi.VolumeCapability_Block); ok {
+		targetDir = filepath.Dir(targetPath)
+	}
+
+	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
 		//TODO: Review permissions
-		if err := os.MkdirAll(targetPath, 0750); err != nil {
+		if err := os.MkdirAll(targetDir, 0750); err != nil {
 			klog.V(0).ErrorS(err, "Failed to create target path",
 				"method", "NodePublishVolume", "volumeID", volumeID, "stagingTargetPath", stagingTargetPath,
-				"targetPath", targetPath)
+				"targetPath", targetDir)
 			return nil, status.Errorf(codes.Internal,
-				"failed to create target path %s: %v", targetPath, err)
+				"failed to create target path %s: %v", targetDir, err)
 		}
 	}
 
@@ -268,10 +281,9 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
 
 	var err error
 	var resp *csi.NodePublishVolumeResponse
-	accessType := volumeCapability.GetAccessType()
 	switch accessType.(type) {
 	case *csi.VolumeCapability_Block:
-		resp, err = ns.handleBlockVolumePublish(stagingTargetPath, targetPath, volumeCapability, options)
+		resp, err = ns.handleBlockVolumePublish(ns.getDeviceName(volName), targetPath, volumeCapability, options)
 	case *csi.VolumeCapability_Mount:
 		resp, err = ns.handleMountVolumePublish(stagingTargetPath, targetPath, volumeCapability, options)
 	default:
@@ -293,12 +305,12 @@ func (ns *NodeServer) NodePublishVolume(_ context.Context, req *csi.NodePublishV
 	return resp, nil
 }
 
-func (ns NodeServer) handleBlockVolumePublish(stagingPath, targetPath string, volumeCapability *csi.VolumeCapability, options []string) (*csi.NodePublishVolumeResponse, error) {
+func (ns NodeServer) handleBlockVolumePublish(devicePath, targetPath string, volumeCapability *csi.VolumeCapability, options []string) (*csi.NodePublishVolumeResponse, error) {
 
-	checkMountPoint, err := ns.checkMountPoint(stagingPath, targetPath, volumeCapability)
+	checkMountPoint, err := ns.checkMountPoint(devicePath, targetPath, volumeCapability)
 	if err != nil {
 		klog.V(0).ErrorS(err, "Failed to check mount point",
-			"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
+			"method", "handleBlockVolumePublish", "stagingPath", devicePath, "targetPath", targetPath)
 		return nil, fmt.Errorf("failed to check mount point: %w", err)
 	}
 
@@ -307,20 +319,31 @@ func (ns NodeServer) handleBlockVolumePublish(stagingPath, targetPath string, vo
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
-	klog.V(3).InfoS("Mounting block volume at target path",
-		"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
+	klog.V(0).InfoS("Mounting block volume at target path",
+		"method", "handleBlockVolumePublish", "stagingPath", devicePath, "targetPath", targetPath)
+
+	// Create an empty file at the target path
+	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+		targetFile, err := os.Create(targetPath)
+		if err != nil {
+			klog.V(0).ErrorS(err, "Failed to create target path file",
+				"method", "handleBlockVolumePublish", "stagingPath", devicePath, "targetPath", targetPath)
+			return nil, fmt.Errorf("failed to create target path file: %w", err)
+		}
+		defer targetFile.Close()
+	}
 
 	// mount the device at the target path
 	fsType := "" // Block volumes do not require a filesystem type
-	err = ns.mounter.Mount(stagingPath, targetPath, fsType, options)
+	err = ns.mounter.Mount(devicePath, targetPath, fsType, options)
 	if err != nil {
 		klog.V(0).ErrorS(err, "Failed to mount device at target path",
-			"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
+			"method", "handleBlockVolumePublish", "stagingPath", devicePath, "targetPath", targetPath)
 		return nil, fmt.Errorf("failed to mount device at target path: %w", err)
 	}
 
-	klog.V(3).InfoS("Block volume successfully mounted at target path",
-		"method", "handleBlockVolumePublish", "stagingPath", stagingPath, "targetPath", targetPath)
+	klog.V(0).InfoS("Block volume successfully mounted at target path",
+		"method", "handleBlockVolumePublish", "stagingPath", devicePath, "targetPath", targetPath)
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }

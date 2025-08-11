@@ -8,12 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/mount-utils"
 	"k8s.io/utils/exec"
-	"k8s.io/utils/exec/testing"
+	testingexec "k8s.io/utils/exec/testing"
 )
 
 const (
-	stagingTargetPath = "/mnt"        // Example staging target path
-	targetPath        = "/mnt/target" // Example target path for publishing
+	targetPath = "/tmp/target" // Example target path for publishing
 )
 
 func getTestNodeServer(mountPoints []string) *NodeServer {
@@ -53,7 +52,7 @@ func getTestNodeServer(mountPoints []string) *NodeServer {
 }
 
 func TestStageVolume(t *testing.T) {
-
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodeStageVolumeRequest
@@ -64,15 +63,18 @@ func TestStageVolume(t *testing.T) {
 			name: "[SUCCESS] Test basic volume mount",
 			request: &csi.NodeStageVolumeRequest{
 				VolumeId:          "test-volume-id",
-				StagingTargetPath: stagingTargetPath,
+				StagingTargetPath: tempDir,
 				VolumeCapability: &csi.VolumeCapability{
 					AccessType: &csi.VolumeCapability_Mount{
 						Mount: &csi.VolumeCapability_MountVolume{
 							FsType: "ext4",
 						},
 					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					},
 				},
-				VolumeContext: map[string]string{
+				PublishContext: map[string]string{
 					"volumeName": "zero",
 				},
 			},
@@ -100,7 +102,7 @@ func TestStageVolume(t *testing.T) {
 }
 
 func TestUnstageVolume(t *testing.T) {
-
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodeUnstageVolumeRequest
@@ -111,7 +113,7 @@ func TestUnstageVolume(t *testing.T) {
 			name: "[SUCCESS] Test correct staging target path",
 			request: &csi.NodeUnstageVolumeRequest{
 				VolumeId:          "test-volume-id",
-				StagingTargetPath: stagingTargetPath,
+				StagingTargetPath: tempDir,
 			},
 			expectResponse: &csi.NodeUnstageVolumeResponse{},
 			expectError:    false,
@@ -120,7 +122,7 @@ func TestUnstageVolume(t *testing.T) {
 			name: "[SUCCESS] Test unmounted staging target path",
 			request: &csi.NodeUnstageVolumeRequest{
 				VolumeId:          "test-volume-id",
-				StagingTargetPath: "/mnt/nonexistent",
+				StagingTargetPath: "/tmp/nonexistent",
 			},
 			expectResponse: &csi.NodeUnstageVolumeResponse{},
 			expectError:    false,
@@ -129,7 +131,7 @@ func TestUnstageVolume(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ns := getTestNodeServer([]string{stagingTargetPath})
+			ns := getTestNodeServer([]string{tempDir})
 			response, err := ns.NodeUnstageVolume(context.Background(), tc.request)
 			if tc.expectError {
 				assert.Error(t, err)
@@ -146,7 +148,7 @@ func TestUnstageVolume(t *testing.T) {
 }
 
 func TestPublishVolume(t *testing.T) {
-
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodePublishVolumeRequest
@@ -157,7 +159,7 @@ func TestPublishVolume(t *testing.T) {
 			name: "[SUCCESS] Test correct staging target path",
 			request: &csi.NodePublishVolumeRequest{
 				VolumeId:          "test-volume-id",
-				StagingTargetPath: stagingTargetPath,
+				StagingTargetPath: tempDir,
 				TargetPath:        targetPath,
 				VolumeCapability: &csi.VolumeCapability{
 					AccessType: &csi.VolumeCapability_Mount{
@@ -167,7 +169,7 @@ func TestPublishVolume(t *testing.T) {
 						},
 					},
 				},
-				VolumeContext: map[string]string{
+				PublishContext: map[string]string{
 					"volumeName": "zero",
 				},
 			},
@@ -178,7 +180,7 @@ func TestPublishVolume(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ns := getTestNodeServer([]string{stagingTargetPath})
+			ns := getTestNodeServer([]string{tempDir})
 			response, err := ns.NodePublishVolume(context.Background(), tc.request)
 			if tc.expectError {
 				assert.Error(t, err)
@@ -195,7 +197,7 @@ func TestPublishVolume(t *testing.T) {
 }
 
 func TestUnpublishVolume(t *testing.T) {
-
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodeUnpublishVolumeRequest
@@ -215,7 +217,7 @@ func TestUnpublishVolume(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ns := getTestNodeServer([]string{stagingTargetPath})
+			ns := getTestNodeServer([]string{tempDir})
 			response, err := ns.NodeUnpublishVolume(context.Background(), tc.request)
 			if tc.expectError {
 				assert.Error(t, err)
@@ -232,7 +234,7 @@ func TestUnpublishVolume(t *testing.T) {
 }
 
 func TestNodeGetVolumeStats(t *testing.T) {
-
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodeGetVolumeStatsRequest
@@ -251,7 +253,7 @@ func TestNodeGetVolumeStats(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ns := getTestNodeServer([]string{stagingTargetPath})
+			ns := getTestNodeServer([]string{tempDir})
 			response, err := ns.NodeGetVolumeStats(context.Background(), tc.request)
 			if tc.expectError {
 				assert.Error(t, err)
@@ -268,6 +270,7 @@ func TestNodeGetVolumeStats(t *testing.T) {
 }
 
 func TestNodeExpandVolume(t *testing.T) {
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodeExpandVolumeRequest
@@ -286,7 +289,7 @@ func TestNodeExpandVolume(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ns := getTestNodeServer([]string{stagingTargetPath})
+			ns := getTestNodeServer([]string{tempDir})
 			response, err := ns.NodeExpandVolume(context.Background(), tc.request)
 			if tc.expectError {
 				assert.Error(t, err)
@@ -303,7 +306,7 @@ func TestNodeExpandVolume(t *testing.T) {
 }
 
 func TestNodeGetCapabilities(t *testing.T) {
-
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodeGetCapabilitiesRequest
@@ -330,7 +333,7 @@ func TestNodeGetCapabilities(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ns := getTestNodeServer([]string{stagingTargetPath})
+			ns := getTestNodeServer([]string{tempDir})
 			response, err := ns.NodeGetCapabilities(context.Background(), tc.request)
 			if tc.expectError {
 				assert.Error(t, err)
@@ -347,7 +350,7 @@ func TestNodeGetCapabilities(t *testing.T) {
 }
 
 func TestNodeGetInfo(t *testing.T) {
-
+	tempDir := t.TempDir()
 	tcs := []struct {
 		name           string
 		request        *csi.NodeGetInfoRequest
@@ -367,7 +370,7 @@ func TestNodeGetInfo(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ns := getTestNodeServer([]string{stagingTargetPath})
+			ns := getTestNodeServer([]string{tempDir})
 			response, err := ns.NodeGetInfo(context.Background(), tc.request)
 			if tc.expectError {
 				assert.Error(t, err)

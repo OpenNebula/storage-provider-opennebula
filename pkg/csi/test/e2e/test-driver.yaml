@@ -1,0 +1,20 @@
+StorageClass:
+  FromName: true
+SnapshotClass:
+  FromName: false
+DriverInfo:
+  Name: csi.opennebula.io
+  Capabilities:
+    block: true
+    controllerExpansion: false
+    exec: true
+    multipods: true
+    persistence: true
+    pvcDataSource: false
+    snapshotDataSource: false
+    rwx: false
+  SupportedFsType:
+    ext4: {}
+    ext3: {}
+    ext2: {}
+    xfs: {}

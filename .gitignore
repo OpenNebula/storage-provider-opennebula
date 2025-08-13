@@ -4,6 +4,7 @@
 _charts/
 bin/
 _deploy/
+_charts/
 .env
 
 tilt/build

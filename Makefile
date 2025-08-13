@@ -8,6 +8,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 CHARTS_DIR := $(SELF)/_charts
 DEPLOY_DIR  := $(SELF)/_deploy
+CHARTS_DIR := $(SELF)/_charts
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -220,6 +221,13 @@ manifests-opennebula-csi-plugin-dev: $(HELM)
 		--set oneAuth=$(ONE_AUTH) \
 		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/dev/opennebula-csi-plugin.yaml
 
+.PHONY: helm-package-csi
+
+helm-package-csi: $(HELM)
+	install -m u=rwx,go=rx -d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi-plugin
+	$(HELM) package helm/opennebula-csi-plugin/  \
+	-d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi-plugin \
+	--version $(CLOSEST_TAG)
 
 # Dependencies
 

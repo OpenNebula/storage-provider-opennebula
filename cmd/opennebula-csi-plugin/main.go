@@ -23,8 +23,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
-	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/driver"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
 	"k8s.io/utils/exec"

@@ -6,7 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
 	"github.com/kubernetes-csi/csi-test/v5/pkg/sanity"
 	"k8s.io/mount-utils"
 	"k8s.io/utils/exec"

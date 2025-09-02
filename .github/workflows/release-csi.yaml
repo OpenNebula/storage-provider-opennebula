@@ -46,7 +46,7 @@ jobs:
       - name: Re-index charts
         working-directory: ./gh-pages/charts/
         run: |
-          ../../bin/helm repo index ./ --url https://opennebula.github.io/cloud-provider-opennebula/charts/
+          ../../bin/helm repo index ./ --url https://opennebula.github.io/storage-provider-opennebula/charts/
 
       - name: Push gh-pages
         working-directory: ./gh-pages/charts/

@@ -53,7 +53,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
 # Cloud Controller Manager image
 ##
 
-FROM gcr.io/distroless/static:nonroot AS cloud-provider-opennebula
+FROM gcr.io/distroless/static:nonroot AS storage-provider-opennebula
 WORKDIR /
 COPY --from=builder /workspace/opennebula-cloud-controller-manager .
 # Use a non-root user to run the container

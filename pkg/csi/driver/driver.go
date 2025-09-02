@@ -21,8 +21,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
-	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/opennebula"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"

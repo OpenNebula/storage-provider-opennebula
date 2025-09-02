@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/OpenNebula/cloud-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
 	"github.com/google/uuid"
 )
 

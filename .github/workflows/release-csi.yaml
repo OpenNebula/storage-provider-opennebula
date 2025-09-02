@@ -26,9 +26,6 @@ jobs:
       - name: Build and push images
         run: make docker-release-opennebula-csi-plugin "CLOSEST_TAG:=$GITHUB_REF_NAME" BUILDX_NO_DEFAULT_ATTESTATIONS=1
 
-      - name: Update appVersion
-        run:  yq -i ".appVersion = \"$GITHUB_REF_NAME\"" helm/opennebula-csi-plugin/Chart.yaml
-
       - name: Generate charts
         run: make helm-package-csi "CLOSEST_TAG:=$GITHUB_REF_NAME"
 

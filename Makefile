@@ -152,7 +152,8 @@ helm-package-csi: $(HELM)
 	install -m u=rwx,go=rx -d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi-plugin
 	$(HELM) package helm/opennebula-csi-plugin/  \
 	-d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi-plugin \
-	--version $(CLOSEST_TAG)
+	--version $(CLOSEST_TAG) \
+	--app-version $(CLOSEST_TAG)
 
 # Dependencies
 

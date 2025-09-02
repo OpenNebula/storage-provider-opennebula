@@ -201,7 +201,7 @@ tilt-clean:
 
 # Dependencies
 
-.PHONY: tilt kind ctlptl clusterctl
+.PHONY: tilt kind ctlptl clusterctl kubectl
 
 tilt: $(TILT)
 $(TILT):
@@ -231,3 +231,10 @@ $(CLUSTERCTL):
 	{ curl -fsSL https://github.com/kubernetes-sigs/cluster-api/releases/download/v$(CLUSTERCTL_VERSION)/clusterctl-linux-amd64 \
 	| install -m u=rwx,go= -o $(USER) -D /dev/fd/0 $@-v$(CLUSTERCTL_VERSION); }
 	@ln -sf $@-v$(CLUSTERCTL_VERSION) $@
+
+kubectl: $(KUBECTL)
+$(KUBECTL):
+	@[ -f $@-v$(KUBECTL_VERSION) ] || \
+	{ curl -fsSL https://dl.k8s.io/release/v$(KUBECTL_VERSION)/bin/linux/amd64/kubectl \
+	| install -m u=rwx,go= -o $(USER) -D /dev/fd/0 $@-v$(KUBECTL_VERSION); }
+	@ln -sf $@-v$(KUBECTL_VERSION) $@

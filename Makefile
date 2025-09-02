@@ -22,7 +22,7 @@ HELM_VERSION				?= 3.17.3
 GOLANGCI_LINT	:= $(SELF)/bin/golangci-lint
 HELM			:= $(SELF)/bin/helm
 
-CLOSEST_TAG ?= $(shell git -C $(SELF) describe --tags --abbrev=0)
+CLOSEST_TAG ?= $(shell git -C $(SELF) describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
 
 # Local registry and tag used for building/pushing image targets
 LOCAL_TAG ?= latest
@@ -53,6 +53,7 @@ all: build
 clean: tilt-clean
 	rm --preserve-root -rf '$(SELF)/bin/'
 	rm --preserve-root -rf '$(DEPLOY_DIR)'
+	rm --preserve-root -rf '$(CHARTS_DIR)'
 
 # Development
 

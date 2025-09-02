@@ -17,7 +17,7 @@ spec:
       labels:
         app: opennebula-csi-node
       annotations:
-        kubectl.kubernetes.io/default-container: opennebula-csi-plugin
+        kubectl.kubernetes.io/default-container: opennebula-csi
     spec:
       serviceAccountName: opennebula-csi-node-sa
       priorityClassName: system-node-critical
@@ -25,7 +25,7 @@ spec:
         - operator: "Exists"
       containers:
         # Node server container
-        - name: opennebula-csi-plugin
+        - name: opennebula-csi
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- if .Values.debugPort }}

@@ -1,6 +1,7 @@
 apiVersion: v2
-name: opennebula-csi-plugin
+name: opennebula-csi
 description: OpenNebula CSI Plugin Helm Chart
 type: application
+# https://github.com/helm/helm/issues/9298
 version: 0.0.1
-appVersion: "latest"
+appVersion: "v0.0.1"

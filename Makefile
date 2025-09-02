@@ -17,15 +17,9 @@ GOBIN := $(shell go env GOBIN)
 endif
 
 GOLANGCI_LINT_VERSION		?= 2.2.1
-ENVSUBST_VERSION			?= 1.4.2
-KUBECTL_VERSION				?= 1.31.4
-KUSTOMIZE_VERSION			?= 5.6.0
 HELM_VERSION				?= 3.17.3
 
 GOLANGCI_LINT	:= $(SELF)/bin/golangci-lint
-ENVSUBST  		:= $(SELF)/bin/envsubst
-KUBECTL			:= $(SELF)/bin/kubectl
-KUSTOMIZE		:= $(SELF)/bin/kustomize
 HELM			:= $(SELF)/bin/helm
 
 CLOSEST_TAG ?= $(shell git -C $(SELF) describe --tags --abbrev=0)
@@ -43,9 +37,9 @@ REMOTE_REGISTRY ?= ghcr.io/opennebula
 CONTAINER_TOOL ?= docker
 
 # Binaries to build
-BUILD_BINS := opennebula-csi-plugin
+BUILD_BINS := opennebula-csi
 # List of container image names to build and push
-IMAGE_NAMES := opennebula-csi-plugin
+IMAGE_NAMES := opennebula-csi
 
 -include .env
 export
@@ -115,57 +109,51 @@ docker-release-%:
 
 # Helm
 
-.PHONY: helm-deploy-opennebula-csi-plugin helm-undeploy-opennebula-csi-plugin manifests-opennebula-csi-plugin manifests-opennebula-csi-plugin-dev
+.PHONY: helm package helm-deploy helm-undeploy manifests manifests-dev
 
-helm-deploy-opennebula-csi-plugin: $(HELM) # Deploy OpenNebula CSI plugin using Helm to the cluster specified in ~/.kube/config.
-	$(HELM) upgrade --install opennebula-csi-plugin helm/opennebula-csi-plugin
-		--set image.repository=$(REMOTE_REGISTRY)/opennebula-csi-plugin \
+helm-package: $(HELM)
+	install -m u=rwx,go=rx -d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi
+	$(HELM) package helm/opennebula-csi/  \
+	-d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi \
+	--version $(CLOSEST_TAG) \
+	--app-version $(CLOSEST_TAG)
+
+helm-deploy: $(HELM) # Deploy OpenNebula CSI plugin using Helm to the cluster specified in ~/.kube/config.
+	$(HELM) upgrade --install opennebula-csi helm/opennebula-csi
+		--set image.repository=$(REMOTE_REGISTRY)/opennebula-csi \
 		--set image.tag=$(CLOSEST_TAG) \
 		--set image.pullPolicy="IfNotPresent" \
 		--set oneApiEndpoint=$(ONE_XMLRPC) \
 		--set oneAuth=$(ONE_AUTH)
 
-helm-undeploy-opennebula-csi-plugin: $(HELM) # Undeploy OpenNebula CSI plugin from the cluster specified in ~/.kube/config.
-	$(HELM) uninstall opennebula-csi-plugin
+helm-undeploy: $(HELM) # Undeploy OpenNebula CSI plugin from the cluster specified in ~/.kube/config.
+	$(HELM) uninstall opennebula-csi
 
-manifests-opennebula-csi-plugin: $(HELM)
-	$(HELM) template opennebula-csi-plugin helm/opennebula-csi-plugin \
-		--set image.repository=$(REMOTE_REGISTRY)/opennebula-csi-plugin \
+manifests: $(HELM)
+	$(HELM) template opennebula-csi helm/opennebula-csi \
+		--set image.repository=$(REMOTE_REGISTRY)/opennebula-csi \
 		--set image.tag=$(CLOSEST_TAG) \
 		--set image.pullPolicy="IfNotPresent" \
 		--set oneApiEndpoint=$(ONE_XMLRPC) \
 		--set oneAuth=$(ONE_AUTH) \
-		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/release/opennebula-csi-plugin.yaml
+		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/release/opennebula-csi.yaml
 
-manifests-opennebula-csi-plugin-dev: $(HELM)
-	$(HELM) template opennebula-csi-plugin helm/opennebula-csi-plugin \
-		--set image.repository=$(LOCAL_REGISTRY)/opennebula-csi-plugin \
+manifests-dev: $(HELM)
+	$(HELM) template opennebula-csi helm/opennebula-csi \
+		--set image.repository=$(LOCAL_REGISTRY)/opennebula-csi \
 		--set image.tag=$(LOCAL_TAG) \
 		--set image.pullPolicy="Always" \
 		--set oneApiEndpoint=$(ONE_XMLRPC) \
 		--set oneAuth=$(ONE_AUTH) \
-		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/dev/opennebula-csi-plugin.yaml
-
-.PHONY: helm-package-csi
-
-helm-package-csi: $(HELM)
-	install -m u=rwx,go=rx -d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi-plugin
-	$(HELM) package helm/opennebula-csi-plugin/  \
-	-d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi-plugin \
-	--version $(CLOSEST_TAG) \
-	--app-version $(CLOSEST_TAG)
+		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/dev/opennebula-csi.yaml
 
 # Dependencies
 
-.PHONY: golangci-lint envsubst kubectl kustomize helm
+.PHONY: golangci-lint helm
 
 golangci-lint: $(GOLANGCI_LINT)
 $(GOLANGCI_LINT):
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,v$(GOLANGCI_LINT_VERSION))
-
-envsubst: $(ENVSUBST)
-$(ENVSUBST):
-	$(call go-install-tool,$(ENVSUBST),github.com/a8m/envsubst/cmd/envsubst,v$(ENVSUBST_VERSION))
 
 helm: $(HELM)
 $(HELM):
@@ -174,17 +162,6 @@ $(HELM):
 	| tar -xzO -f- linux-amd64/helm \
 	| install -m u=rwx,go= -o $(USER) -D /dev/fd/0 $@-v$(HELM_VERSION); }
 	@ln -sf $@-v$(HELM_VERSION) $@
-
-kubectl: $(KUBECTL)
-$(KUBECTL):
-	@[ -f $@-v$(KUBECTL_VERSION) ] || \
-	{ curl -fsSL https://dl.k8s.io/release/v$(KUBECTL_VERSION)/bin/linux/amd64/kubectl \
-	| install -m u=rwx,go= -o $(USER) -D /dev/fd/0 $@-v$(KUBECTL_VERSION); }
-	@ln -sf $@-v$(KUBECTL_VERSION) $@
-
-kustomize: $(KUSTOMIZE)
-$(KUSTOMIZE):
-	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5,v$(KUSTOMIZE_VERSION))
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary

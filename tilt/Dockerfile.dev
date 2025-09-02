@@ -16,13 +16,13 @@
 # CSI Plugin image
 ##
 
-FROM alpine:3.22 AS opennebula-csi-plugin
+FROM alpine:3.22 AS opennebula-csi
 
 WORKDIR /app
-COPY tilt/build/opennebula-csi-plugin .
+COPY tilt/build/opennebula-csi .
 
 RUN apk add --no-cache e2fsprogs util-linux
 # Ensure the binary is executable
-RUN chmod +x /app/opennebula-csi-plugin
+RUN chmod +x /app/opennebula-csi
 
-ENTRYPOINT ["/app/opennebula-csi-plugin"]
+ENTRYPOINT ["/app/opennebula-csi"]

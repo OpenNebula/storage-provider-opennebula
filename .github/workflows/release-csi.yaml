@@ -24,10 +24,10 @@ jobs:
           password: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Build and push images
-        run: make docker-release-opennebula-csi-plugin "CLOSEST_TAG:=$GITHUB_REF_NAME" BUILDX_NO_DEFAULT_ATTESTATIONS=1
+        run: make docker-release-opennebula-csi "CLOSEST_TAG:=$GITHUB_REF_NAME" BUILDX_NO_DEFAULT_ATTESTATIONS=1
 
       - name: Generate charts
-        run: make helm-package-csi "CLOSEST_TAG:=$GITHUB_REF_NAME"
+        run: make helm-package "CLOSEST_TAG:=$GITHUB_REF_NAME"
 
       - name: Checkout repository (gh-pages)
         uses: actions/checkout@v4

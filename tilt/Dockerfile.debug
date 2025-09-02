@@ -16,7 +16,7 @@
 # CSI Plugin image
 ##
 
-FROM golang:1.24-alpine AS opennebula-csi-plugin
+FROM golang:1.24-alpine AS opennebula-csi
 
 ARG DEBUG_PORT=5000
 
@@ -25,11 +25,11 @@ RUN apk add --no-cache e2fsprogs util-linux
 RUN CGO_ENABLED=0 go install github.com/go-delve/delve/cmd/dlv@latest
 
 WORKDIR /app
-COPY tilt/build/opennebula-csi-plugin .
+COPY tilt/build/opennebula-csi .
 
 # Ensure the binary is executable
-RUN chmod +x /app/opennebula-csi-plugin
+RUN chmod +x /app/opennebula-csi
 
 EXPOSE ${DEBUG_PORT}
 
-ENTRYPOINT ["dlv", "--listen=0.0.0.0:${DEBUG_PORT}", "--api-version=2", "--headless=true", "exec", "/app/opennebula-csi-plugin", "--"]
+ENTRYPOINT ["dlv", "--listen=0.0.0.0:${DEBUG_PORT}", "--api-version=2", "--headless=true", "exec", "/app/opennebula-csi", "--"]

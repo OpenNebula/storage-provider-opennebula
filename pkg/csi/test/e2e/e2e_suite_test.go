@@ -76,7 +76,7 @@ const (
 	localRegistryPort        = "5005"
 	localRegistryName        = "local-registry"
 	kubernetesVersion        = "v1.31.4"
-	driverName               = "opennebula-csi"
+	driverName               = "opennebula-csi
 	driverImageTag           = "e2e"
 	publicNetworkName        = "service"
 	registryImage            = "registry:2"

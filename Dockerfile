@@ -40,36 +40,20 @@ COPY pkg/ pkg/
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
-    go build -a -o opennebula-cloud-controller-manager cmd/opennebula-cloud-controller-manager/main.go
-
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
-    go build -a -o opennebula-csi-plugin cmd/opennebula-csi-plugin/main.go
+    go build -a -o opennebula-csi cmd/opennebula-csi/main.go
 
 ###
 # TARGET IMAGES
 ###
 
 ##
-# Cloud Controller Manager image
-##
-
-FROM gcr.io/distroless/static:nonroot AS storage-provider-opennebula
-WORKDIR /
-COPY --from=builder /workspace/opennebula-cloud-controller-manager .
-# Use a non-root user to run the container
-USER 65532:65532
-
-ENTRYPOINT ["/opennebula-cloud-controller-manager"]
-
-##
 # CSI Plugin image
 ##
-
-FROM alpine:3.22 AS opennebula-csi-plugin
+FROM alpine:3.22 AS opennebula-csi
 WORKDIR /app
 
 RUN apk add --no-cache e2fsprogs util-linux
 
-COPY --from=builder /workspace/opennebula-csi-plugin .
+COPY --from=builder /workspace/opennebula-csi .
 
-ENTRYPOINT ["/app/opennebula-csi-plugin"]
+ENTRYPOINT ["/app/opennebula-csi"]

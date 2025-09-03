@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-block-busybox-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: opennebula-storage
+  volumeMode: Block
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-block-busybox-write
+  labels:
+    app: demo-block-busybox
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command:
+      - sh
+      - -c
+      - |
+          echo "Test write to block device"
+          echo "This is test data. Date: $(date)" | dd of=/dev/xvda bs=512 count=1
+          echo "Reading contents..."
+          dd if=/dev/xvda bs=512 count=1 | strings
+          sleep 3600
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    volumeDevices:
+    - name: test-volume
+      devicePath: /dev/xvda
+  volumes:
+  - name: test-volume
+    persistentVolumeClaim:
+      claimName: demo-block-busybox-pvc
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: demo-block-busybox
+          topologyKey: "kubernetes.io/hostname"
+  terminationGracePeriodSeconds: 0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-block-busybox-read
+  labels:
+    app: demo-block-busybox
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ["sh", "-c", "while true; do dd if=/dev/xvda bs=512 count=1 | strings; sleep 5; done"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    volumeDevices:
+    - name: test-volume
+      devicePath: /dev/xvda
+  volumes:
+  - name: test-volume
+    persistentVolumeClaim:
+      claimName: demo-block-busybox-pvc
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: demo-block-busybox
+          topologyKey: "kubernetes.io/hostname"
+  terminationGracePeriodSeconds: 0

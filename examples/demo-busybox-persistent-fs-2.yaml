@@ -1,0 +1,38 @@
+# REMEMBER to delete claimRef from the pv before deploying this!
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-preserve-fs-busybox-pvc-new
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: opennebula-fs-preserve
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-fs-busybox
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ["sh", "-c", "while true; do cat /data/test; sleep 5; done"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    volumeMounts:
+    - name: test-volume
+      mountPath: /data
+  volumes:
+  - name: test-volume
+    persistentVolumeClaim:
+      claimName: demo-preserve-fs-busybox-pvc-new
+  terminationGracePeriodSeconds: 0
+  restartPolicy: Never

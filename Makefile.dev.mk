@@ -140,6 +140,7 @@ endef
 
 WORKLOAD_CLUSTER_NAME ?= capone-workload
 WORKLOAD_CLUSTER_KUBECONFIG ?= kubeconfig-workload.yaml
+WORKER_NODES ?= 2
 
 # Develop environment
 
@@ -164,6 +165,7 @@ workload-cluster-init: $(HELM)
 	$(HELM) upgrade --install $(WORKLOAD_CLUSTER_NAME) capone/capone-kadm --version $(CAPONE_VERSION) \
 		--set ONE_XMLRPC=$(ONE_XMLRPC) \
 		--set ONE_AUTH=$(ONE_AUTH) \
+		--set WORKER_MACHINE_COUNT=$(WORKER_NODES) \
 		--values /tmp/cluster_templates_values.yaml
 	@rm -f /tmp/cluster_templates_values.yaml
 

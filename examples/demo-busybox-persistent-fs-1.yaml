@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-fs-preserve-busybox-pvc-old
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: opennebula-fs-preserve
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-fs-busybox
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command:
+      - sh
+      - -c
+      - |
+        FILE="/data/test"
+        CUR_DATE="$(date)"
+        if [ ! -f "$FILE" ]; then
+          echo "$CUR_DATE" > "$FILE"
+        else
+          OLD_DATE="$(cat "$FILE")"
+          echo "OVERRIDDEN: OLD=$OLD_DATE NEW=$CUR_DATE" > "$FILE"
+        fi
+        sync
+        cat "$FILE"
+        sleep 300
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    volumeMounts:
+    - name: test-volume
+      mountPath: /data
+  volumes:
+  - name: test-volume
+    persistentVolumeClaim:
+      claimName: demo-fs-preserve-busybox-pvc-old
+  terminationGracePeriodSeconds: 0
+  restartPolicy: Never

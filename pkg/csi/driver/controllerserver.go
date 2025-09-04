@@ -249,9 +249,21 @@ func (s *ControllerServer) ControllerUnpublishVolume(ctx context.Context, req *c
 
 	nodeID, err := s.volumeProvider.NodeExists(ctx, req.NodeId)
 	if err != nil || nodeID == -1 {
-		klog.V(0).ErrorS(err, "Node not found",
+		volumeReady, err := s.volumeProvider.VolumeReadyWithTimeout(volumeID)
+		if err != nil {
+			klog.V(0).ErrorS(err, "Failed to check if volume is used",
+				"method", "ControllerUnpublishVolume", "volumeID", req.VolumeId)
+			return nil, status.Error(codes.Internal, "failed to check if volume is used")
+		}
+
+		if !volumeReady {
+			klog.V(0).ErrorS(err, "Node not found and volume is still in use",
+				"method", "ControllerUnpublishVolume", "nodeID", req.NodeId)
+			return nil, status.Error(codes.NotFound, "node not found and volume is still in use")
+		}
+		klog.V(1).InfoS("Node not found and volume not in use, skipping volume unpublish",
 			"method", "ControllerUnpublishVolume", "nodeID", req.NodeId)
-		return nil, status.Error(codes.NotFound, "node not found")
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
 	}
 
 	_, err = s.volumeProvider.GetVolumeInNode(ctx, volumeID, nodeID)

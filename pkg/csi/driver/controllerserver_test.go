@@ -485,3 +485,8 @@ func (m *MockOpenNebulaVolumeProviderTestify) GetVolumeInNode(ctx context.Contex
 	args := m.Called(ctx, volumeID, nodeID)
 	return args.Get(0).(string), args.Error(1)
 }
+
+func (m *MockOpenNebulaVolumeProviderTestify) VolumeReadyWithTimeout(volumeID int) (bool, error) {
+	args := m.Called(volumeID)
+	return args.Bool(0), args.Error(1)
+}

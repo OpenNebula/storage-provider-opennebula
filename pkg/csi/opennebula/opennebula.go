@@ -45,6 +45,7 @@ type OpenNebulaVolumeProvider interface {
 	VolumeExists(ctx context.Context, volume string) (int, int, error)
 	NodeExists(ctx context.Context, node string) (int, error)
 	GetVolumeInNode(ctx context.Context, volumeID int, nodeID int) (string, error)
+	VolumeReadyWithTimeout(volumeID int) (bool, error)
 }
 
 func NewClient(config OpenNebulaConfig) *OpenNebulaClient {

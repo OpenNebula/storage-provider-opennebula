@@ -32,10 +32,11 @@ import (
 )
 
 const (
-	ownerTag       = "OWNER"
-	sizeConversion = 1024 * 1024
-	timeout        = 5 * time.Second
-	fsTypeTag      = "FS"
+	ownerTag          = "OWNER"
+	sizeConversion    = 1024 * 1024
+	timeout           = 5 * time.Second
+	fsTypeTag         = "FS"
+	volumeUsedTimeout = 30 * time.Second
 )
 
 type PersistentDiskVolumeProvider struct {
@@ -88,7 +89,7 @@ func (p *PersistentDiskVolumeProvider) CreateVolume(ctx context.Context, name st
 		return fmt.Errorf("failed to create volume: %w", err)
 	}
 
-	err = p.waitForResourceReady(imageID, timeout, p.volumeReady)
+	err = p.waitForResourceStatus(imageID, timeout, p.volumeReady)
 	if err != nil {
 		return fmt.Errorf("failed to wait for volume readiness: %w", err)
 	}
@@ -112,7 +113,7 @@ func (p *PersistentDiskVolumeProvider) DeleteVolume(ctx context.Context, volume 
 
 	// Force delete
 	p.ctrl.Client.CallContext(ctx, "one.image.delete", volumeID, true)
-	err = p.waitForResourceReady(volumeID, timeout, p.volumeDeleted)
+	err = p.waitForResourceStatus(volumeID, timeout, p.volumeDeleted)
 	if err != nil {
 		return fmt.Errorf("failed to wait for volume deletion: %w", err)
 	}
@@ -141,7 +142,7 @@ func (p *PersistentDiskVolumeProvider) AttachVolume(ctx context.Context, volume 
 		return fmt.Errorf("failed to attach volume %s to node %s: %w",
 			volume, node, err)
 	}
-	err = p.waitForResourceReady(nodeID, timeout, p.nodeReady)
+	err = p.waitForResourceStatus(nodeID, timeout, p.nodeReady)
 	if err != nil {
 		return fmt.Errorf("failed to wait for node readiness: %w", err)
 	}
@@ -243,7 +244,7 @@ func (p *PersistentDiskVolumeProvider) DetachVolume(ctx context.Context, volume,
 				return fmt.Errorf("failed to detach volume %s from node %s: %w",
 					diskID, node, err)
 			}
-			err = p.waitForResourceReady(nodeID, timeout, p.nodeReady)
+			err = p.waitForResourceStatus(nodeID, timeout, p.nodeReady)
 			if err != nil {
 				return fmt.Errorf("failed to wait for node readiness: %w", err)
 			}
@@ -314,6 +315,14 @@ func (p *PersistentDiskVolumeProvider) VolumeExists(ctx context.Context, volume 
 	return imgID, (img.Size * sizeConversion), nil
 }
 
+func (p *PersistentDiskVolumeProvider) VolumeReadyWithTimeout(volumeID int) (bool, error) {
+	err := p.waitForResourceStatus(volumeID, volumeUsedTimeout, p.volumeReady)
+	if err != nil {
+		return false, fmt.Errorf("failed to wait for volume ready: %w", err)
+	}
+	return p.volumeReady(volumeID)
+}
+
 func (p *PersistentDiskVolumeProvider) NodeExists(ctx context.Context, node string) (int, error) {
 	vmID, err := p.ctrl.VMs().ByName(node)
 	if err != nil {
@@ -334,7 +343,7 @@ func (p *PersistentDiskVolumeProvider) volumeReady(volumeID int) (bool, error) {
 		return false, fmt.Errorf("failed to get Disk state: %w", err)
 	}
 
-	return state == img.Ready || state == img.Used, nil
+	return state == img.Ready, nil
 }
 
 func (p *PersistentDiskVolumeProvider) volumeDeleted(volumeID int) (bool, error) {
@@ -358,7 +367,7 @@ func (p *PersistentDiskVolumeProvider) nodeReady(nodeID int) (bool, error) {
 	return vmLCMState == vm.Running, nil
 }
 
-func (p *PersistentDiskVolumeProvider) waitForResourceReady(volumeID int, timeout time.Duration, checkFunc func(int) (bool, error)) error {
+func (p *PersistentDiskVolumeProvider) waitForResourceStatus(volumeID int, timeout time.Duration, checkFunc func(int) (bool, error)) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 

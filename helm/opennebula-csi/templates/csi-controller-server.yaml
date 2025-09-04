@@ -69,7 +69,6 @@ spec:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
             - "--timeout=2m" # TODO: adjust
-            - "--reconcile-sync=30m"
           env:
             - name: ADDRESS
               value: /csi/csi.sock

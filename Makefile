@@ -116,7 +116,7 @@ helm-package: $(HELM)
 	install -m u=rwx,go=rx -d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi
 	$(HELM) package helm/opennebula-csi/  \
 	-d $(CHARTS_DIR)/$(CLOSEST_TAG)/opennebula-csi \
-	--version $(CLOSEST_TAG) \
+	--version $(subst v,,$(CLOSEST_TAG)) \
 	--app-version $(CLOSEST_TAG)
 
 helm-deploy: $(HELM) # Deploy OpenNebula CSI plugin using Helm to the cluster specified in ~/.kube/config.

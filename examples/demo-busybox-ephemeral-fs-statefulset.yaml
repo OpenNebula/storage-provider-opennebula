@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: demo-fs-busybox-write
+  labels:
+    app: demo-fs-busybox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-fs-busybox
+      role: write
+  template:
+    metadata:
+      labels:
+        app: demo-fs-busybox
+        role: write
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command:
+          - sh
+          - -c
+          - |
+            if [ -f /data/testfile ]; then
+              echo "file already exists"
+              cat /data/testfile
+            else
+              echo "file does not exist"
+              echo "$(date) - $(hostname)" > /data/testfile
+              cat /data/testfile
+            fi
+            sync
+            sleep 3600
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: test-volume
+          mountPath: /data
+      terminationGracePeriodSeconds: 0
+  volumeClaimTemplates:
+    - metadata:
+        name: test-volume
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: opennebula-fs

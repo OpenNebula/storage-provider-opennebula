@@ -1,0 +1,83 @@
+/*
+Copyright 2025, OpenNebula Project, OpenNebula Systems.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+import (
+	"context"
+	"flag"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver"
+	"k8s.io/klog/v2"
+	"k8s.io/mount-utils"
+	"k8s.io/utils/exec"
+)
+
+var (
+	driverName        = flag.String("drivername", driver.DefaultDriverName, "CSI driver name")
+	pluginEndpoint    = flag.String("endpoint", driver.DefaultGRPCServerEndpoint, "CSI plugin endpoint")
+	nodeID            = flag.String("nodeid", "", "Node ID")
+	maxVolumesPerNode = flag.Uint64("maxVolumesPerNode", 255, "Maximum number of volumes that can be attached to a node")
+)
+
+func main() {
+	klog.InitFlags(nil)
+	_ = flag.Set("logtostderr", "true")
+	flag.Parse()
+
+	if *nodeID == "" {
+		klog.Warning("nodeid is empty")
+	}
+
+	config := config.LoadConfiguration()
+
+	handle(config)
+	os.Exit(0)
+}
+
+func handle(cfg config.CSIPluginConfig) {
+	mounter := mount.NewSafeFormatAndMount(
+		mount.New(""), // using default linux mounter implementation
+		exec.New(),
+	)
+	driverOptions := &driver.DriverOptions{
+		NodeID:             *nodeID,
+		DriverName:         *driverName,
+		GRPCServerEndpoint: *pluginEndpoint,
+		PluginConfig:       cfg,
+		Mounter:            mounter,
+	}
+	driver := driver.NewDriver(driverOptions)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cancelChan := make(chan os.Signal, 1)
+	signal.Notify(cancelChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-cancelChan
+		cancel()
+	}()
+
+	err := driver.Run(ctx)
+	if err != nil {
+		klog.Fatalf("Failed to run driver: %v", err)
+	}
+}

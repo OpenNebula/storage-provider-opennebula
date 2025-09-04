@@ -1,0 +1,57 @@
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: opennebula-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: csi.opennebula.io
+reclaimPolicy: Delete
+allowVolumeExpansion: false
+mountOptions: [] # TODO
+volumeBindingMode: Immediate
+parameters: {} #TODO (provider-specific)
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: opennebula-storage-preserve
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: csi.opennebula.io
+reclaimPolicy: Retain
+allowVolumeExpansion: false
+mountOptions: [] # TODO
+volumeBindingMode: Immediate
+parameters: {} #TODO (provider-specific)
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: opennebula-fs
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: csi.opennebula.io
+reclaimPolicy: Delete
+allowVolumeExpansion: false
+mountOptions: [] # TODO
+volumeBindingMode: Immediate
+parameters:
+  fsType: "ext4"
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: opennebula-fs-preserve
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: csi.opennebula.io
+reclaimPolicy: Retain
+allowVolumeExpansion: false
+mountOptions: [] # TODO
+volumeBindingMode: Immediate
+parameters:
+  fsType: "ext4"

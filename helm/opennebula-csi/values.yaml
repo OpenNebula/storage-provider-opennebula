@@ -1,0 +1,10 @@
+# Default values for opennebula-csi.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+oneAuth: "oneadmin:changeme"
+oneApiEndpoint: "http://localhost:2633/RPC2"
+image:
+  repository: "ghcr.io/opennebula/opennebula-csi"
+  tag: "latest"
+  pullPolicy: "IfNotPresent"

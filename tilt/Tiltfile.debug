@@ -1,0 +1,58 @@
+# -*- mode: Python -*-
+load('ext://restart_process', 'docker_build_with_restart')
+
+DEFAULT_DEBUG_PORT = "5000"
+
+local_resource(
+  name='opennebula-csi-bin',
+  dir='..',
+  cmd='CGO_ENABLED=0 go build -gcflags "-N -l" -o ./tilt/build/opennebula-csi ./cmd/opennebula-csi/main.go',
+  deps=[
+    '../cmd/opennebula-csi/main.go',
+    '../pkg/csi',
+    '../go.mod',
+    '../go.sum'
+  ]
+)
+
+docker_build_with_restart(
+    ref=os.getenv('LOCAL_REGISTRY')+'/opennebula-csi',
+    context='..',
+    dockerfile='Dockerfile.debug',
+    only=[
+        'tilt/build/opennebula-csi',
+        'Dockerfile.debug'
+    ],
+    build_args={
+        'DEBUG_PORT': os.getenv('DEBUG_PORT', DEFAULT_DEBUG_PORT),  # Default to 5000 if not set
+    },
+    live_update=[
+        sync(local_path='./tilt/build/opennebula-csi', remote_path='/app'),
+    ],
+    entrypoint=[
+        'dlv',
+        '--listen=0.0.0.0:' + os.getenv('DEBUG_PORT', DEFAULT_DEBUG_PORT),
+        '--api-version=2',
+        '--headless=true',
+        'exec',
+        '/app/opennebula-csi',
+        #'--continue',
+        #'--accept-multiclient',
+        '--'
+    ],
+)
+
+# Deploy to workload cluster
+yaml = helm('../helm/opennebula-csi',
+    name='opennebula-csi',
+    set=[
+        'image.repository=' + os.getenv('LOCAL_REGISTRY') + '/opennebula-csi',
+        #'image.tag=' + os.getenv('LOCAL_TAG'), # Will be overridden by Tilt
+        'image.pullPolicy=Always',
+        'oneApiEndpoint=' + os.getenv('ONE_XMLRPC'),
+        'oneAuth=' + os.getenv('ONE_AUTH'),
+        'debugPort=' + os.getenv('DEBUG_PORT', DEFAULT_DEBUG_PORT),  # Default to 5000 if not set
+    ]
+)
+allow_k8s_contexts(os.getenv('WORKLOAD_CLUSTER_NAME') + '-admin@' + os.getenv('WORKLOAD_CLUSTER_NAME')) #for safety reasons
+k8s_yaml(yaml)

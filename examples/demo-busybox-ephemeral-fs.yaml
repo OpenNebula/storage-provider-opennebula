@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-fs-busybox-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: opennebula-fs
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-fs-busybox-write
+  labels:
+    app: demo-fs-busybox
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command:
+      - sh
+      - -c
+      - |
+        while true; do
+          echo "Hello World! The current time is $(date '+%Y/%m/%d-%H:%M:%S')" > /data/test
+          sleep 1
+        done
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    volumeMounts:
+    - name: test-volume
+      mountPath: /data
+  volumes:
+  - name: test-volume
+    persistentVolumeClaim:
+      claimName: demo-fs-busybox-pvc
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: demo-fs-busybox
+          topologyKey: "kubernetes.io/hostname"
+  terminationGracePeriodSeconds: 0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-fs-busybox-read
+  labels:
+    app: demo-fs-busybox
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ["sh", "-c", "while true; do cat /data/test; sleep 1; done"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    volumeMounts:
+    - name: test-volume
+      mountPath: /data
+      readOnly: true
+  volumes:
+  - name: test-volume
+    persistentVolumeClaim:
+      claimName: demo-fs-busybox-pvc
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: demo-fs-busybox
+          topologyKey: "kubernetes.io/hostname"
+  terminationGracePeriodSeconds: 0

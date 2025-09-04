@@ -1,0 +1,114 @@
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: opennebula-csi-node
+  namespace: kube-system
+spec:
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: opennebula-csi-node
+  template:
+    metadata:
+      labels:
+        app: opennebula-csi-node
+      annotations:
+        kubectl.kubernetes.io/default-container: opennebula-csi
+    spec:
+      serviceAccountName: opennebula-csi-node-sa
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: "Exists"
+      containers:
+        # Node server container
+        - name: opennebula-csi
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.debugPort }}
+          ports:
+            - containerPort: {{ .Values.debugPort }}
+              name: debug
+              protocol: TCP
+          {{- end }}
+          args:
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--nodeid=$(NODE_ID)"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: ONE_XMLRPC
+              value: "{{ .Values.oneApiEndpoint }}"
+            - name: ONE_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: csi-opennebula-auth
+                  key: credentials
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          volumeMounts:
+            - name: csi-socket-dir
+              mountPath: /csi
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: "Bidirectional"
+            - name: device-dir
+              mountPath: /dev
+        # Registrar sidecar https://kubernetes-csi.github.io/docs/node-driver-registrar.html
+        - name: csi-node-driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/csi.opennebula.io/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: csi-socket-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+        # Liveness probe: https://kubernetes-csi.github.io/docs/livenessprobe.html
+        - name: liveness-probe
+          imagePullPolicy: IfNotPresent
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.16.0
+          args:
+            - --csi-address=/csi/csi.sock
+            - --probe-timeout=3s
+            - --health-port=9808
+          volumeMounts:
+          - name: csi-socket-dir
+            mountPath: /csi
+      volumes:
+        - name: csi-socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi.opennebula.io
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: device-dir
+          hostPath:
+            path: /dev
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: DirectoryOrCreate

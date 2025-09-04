@@ -1,0 +1,42 @@
+# -*- mode: Python -*-
+load('ext://restart_process', 'docker_build_with_restart')
+
+local_resource(
+  name='opennebula-csi-bin',
+  dir='..',
+  cmd='CGO_ENABLED=0 go build -o ./tilt/build/opennebula-csi ./cmd/opennebula-csi/main.go',
+  deps=[
+    '../cmd/opennebula-csi/main.go',
+    '../pkg/csi',
+    '../go.mod',
+    '../go.sum'
+  ]
+)
+
+docker_build_with_restart(
+    ref=os.getenv('LOCAL_REGISTRY')+'/opennebula-csi',
+    context='..',
+    dockerfile='Dockerfile.dev',
+    only=[
+        'tilt/build/opennebula-csi',
+        'Dockerfile.dev'
+    ],
+    live_update=[
+        sync(local_path='./tilt/build/opennebula-csi', remote_path='/app'),
+    ],
+    entrypoint=['/app/opennebula-csi'],
+)
+
+# Deploy to workload cluster
+yaml = helm('../helm/opennebula-csi',
+    name='opennebula-csi',
+    set=[
+        'image.repository=' + os.getenv('LOCAL_REGISTRY') + '/opennebula-csi',
+        #'image.tag=' + os.getenv('LOCAL_TAG'), # Will be overridden by Tilt
+        'image.pullPolicy=Always',
+        'oneApiEndpoint=' + os.getenv('ONE_XMLRPC'),
+        'oneAuth=' + os.getenv('ONE_AUTH'),
+    ]
+)
+allow_k8s_contexts(os.getenv('WORKLOAD_CLUSTER_NAME') + '-admin@' + os.getenv('WORKLOAD_CLUSTER_NAME')) #for safety reasons
+k8s_yaml(yaml)

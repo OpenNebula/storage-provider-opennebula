@@ -1,3 +1,14 @@
 apiVersion: v1
-entries: {}
-generated: "2025-09-02T10:51:11.028412208+02:00"
+entries:
+  opennebula-csi:
+  - apiVersion: v2
+    appVersion: v0.1.0
+    created: "2025-09-04T15:46:10.734779664Z"
+    description: OpenNebula CSI Plugin Helm Chart
+    digest: 9a00ad34f956f222ef29009486756abe83cf308cdc6015846c10bf21bc6e97b9
+    name: opennebula-csi
+    type: application
+    urls:
+    - https://opennebula.github.io/storage-provider-opennebula/charts/opennebula-csi-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-09-04T15:46:10.734422475Z"

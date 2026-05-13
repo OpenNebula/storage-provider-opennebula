@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	img "github.com/OpenNebula/one/src/oca/go/src/goca/schemas/image"
 	"github.com/OpenNebula/one/src/oca/go/src/goca/schemas/shared"
 	"github.com/OpenNebula/one/src/oca/go/src/goca/schemas/vm"
 	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
@@ -117,7 +118,7 @@ func TestPersistentDiskLifecycle(t *testing.T) {
 	t.Logf("volume %s deleted successfully", volumeTestName)
 }
 
-func TestPersistentDiskDetachedExpansion(t *testing.T) {
+func TestPersistentDiskDetachedExpansionUnsupported(t *testing.T) {
 	if os.Getenv("RUN_OPENNEBULA_INTEGRATION_TESTS") != "1" {
 		t.Skip("set RUN_OPENNEBULA_INTEGRATION_TESTS=1 to run OpenNebula integration tests")
 	}
@@ -163,12 +164,10 @@ func TestPersistentDiskDetachedExpansion(t *testing.T) {
 	})
 
 	newSize, err := volumeProvider.ExpandVolume(ctx, volumeTestName, expandedSize, true)
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, newSize, expandedSize)
-
-	_, resolvedSize, err := volumeProvider.VolumeExists(ctx, volumeTestName)
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, int64(resolvedSize), expandedSize)
+	require.Error(t, err)
+	assert.Zero(t, newSize)
+	assert.True(t, IsDatastoreConfigError(err))
+	assert.Contains(t, err.Error(), "expanding detached OpenNebula persistent disks is not supported")
 }
 
 func getIntegrationTestDatastores() []string {
@@ -221,6 +220,58 @@ func TestIsHotplugStateError(t *testing.T) {
 	require.True(t, isHotplugStateError(fmt.Errorf("wrong state hotplug")))
 	require.False(t, isHotplugStateError(fmt.Errorf("wrong state running")))
 	require.False(t, isHotplugStateError(nil))
+}
+
+func TestCSIRequestedSizeMetadataParsesBytesAndMegabytes(t *testing.T) {
+	tpl := img.NewTemplate()
+	tpl.AddPair(csiRequestedSizeMBTag, "3072")
+	tpl.AddPair(csiRequestedSizeBytesTag, "4294967296")
+
+	sizeBytes, err := csiRequestedSizeBytesFromTemplate(*tpl)
+	require.NoError(t, err)
+	assert.Equal(t, int64(4*1024*1024*1024), sizeBytes)
+}
+
+func TestCSIRequestedSizeMetadataUsesLargestValidValue(t *testing.T) {
+	tpl := img.NewTemplate()
+	tpl.AddPair(csiRequestedSizeBytesTag, "2147483648")
+	tpl.AddPair(csiRequestedSizeBytesTag, "4294967296")
+
+	sizeBytes, err := csiRequestedSizeBytesFromTemplate(*tpl)
+	require.NoError(t, err)
+	assert.Equal(t, int64(4*1024*1024*1024), sizeBytes)
+}
+
+func TestCSIRequestedSizeMetadataReportsInvalidValues(t *testing.T) {
+	tpl := img.NewTemplate()
+	tpl.AddPair(csiRequestedSizeBytesTag, "not-a-number")
+
+	sizeBytes, err := csiRequestedSizeBytesFromTemplate(*tpl)
+	require.Error(t, err)
+	assert.Zero(t, sizeBytes)
+	assert.Contains(t, err.Error(), "invalid CSI requested size")
+}
+
+func TestEffectiveVolumeSizeUsesMaxCanonicalAndCSIRequestedSize(t *testing.T) {
+	assert.Equal(t, int64(4*1024*1024*1024), effectiveVolumeSizeBytes(2*1024*1024*1024, 4*1024*1024*1024))
+	assert.Equal(t, int64(4*1024*1024*1024), effectiveVolumeSizeBytes(4*1024*1024*1024, 2*1024*1024*1024))
+	assert.Equal(t, int64(2*1024*1024*1024), effectiveVolumeSizeBytes(2*1024*1024*1024, 0))
+}
+
+func TestAttachRestoreResizePlanRestoresStaleCanonicalAttach(t *testing.T) {
+	shouldRestore, requestedSizeMB := attachRestoreResizePlan(2*1024*1024*1024, 4*1024*1024*1024)
+	require.True(t, shouldRestore)
+	assert.Equal(t, int64(4096), requestedSizeMB)
+}
+
+func TestAttachRestoreResizePlanLeavesNonExpandedVolumeUnchanged(t *testing.T) {
+	shouldRestore, requestedSizeMB := attachRestoreResizePlan(2*1024*1024*1024, 0)
+	require.False(t, shouldRestore)
+	assert.Zero(t, requestedSizeMB)
+
+	shouldRestore, requestedSizeMB = attachRestoreResizePlan(4*1024*1024*1024, 4*1024*1024*1024)
+	require.False(t, shouldRestore)
+	assert.Zero(t, requestedSizeMB)
 }
 
 func TestHostArtifactConflictFromMessageParsesLocalLVName(t *testing.T) {

@@ -41,6 +41,12 @@ const (
 	fsTypeTag           = "FS"
 	volumeUsedTimeout   = 30 * time.Second
 	hotplugPollInterval = time.Second
+
+	csiRequestedSizeBytesTag = "CSI_REQUESTED_SIZE_BYTES"
+	csiRequestedSizeMBTag    = "CSI_REQUESTED_SIZE_MB"
+	csiExpandedByTag         = "CSI_EXPANDED_BY"
+	csiExpandedAtTag         = "CSI_EXPANDED_AT"
+	csiExpandedByValue       = "csi.opennebula.io"
 )
 
 type PersistentDiskVolumeProvider struct {
@@ -388,66 +394,51 @@ func (p *PersistentDiskVolumeProvider) ExpandVolume(ctx context.Context, volume 
 		return 0, err
 	}
 
-	sizeMB := size / sizeConversion
-	if size%sizeConversion != 0 {
-		sizeMB++
-	}
+	sizeMB := bytesToMiBRoundUp(size)
 
 	if attached {
 		if attachedSizeBytes >= size {
+			if err := p.persistCSIRequestedSize(ctx, volumeID, volume, size, sizeMB); err != nil {
+				return 0, err
+			}
 			return attachedSizeBytes, nil
 		}
 
 		err = p.ctrl.VM(vmID).Disk(diskID).ResizeContext(ctx, strconv.FormatInt(sizeMB, 10))
 		if err != nil {
 			if attachedSizeBytes, sizeErr := p.attachedDiskSizeBytes(ctx, vmID, diskID, volumeID); sizeErr == nil && attachedSizeBytes >= size {
+				if persistErr := p.persistCSIRequestedSize(ctx, volumeID, volume, size, sizeMB); persistErr != nil {
+					return 0, persistErr
+				}
 				return attachedSizeBytes, nil
 			}
 			return 0, fmt.Errorf("failed to expand volume %s on vm %d disk %d: %w", volume, vmID, diskID, err)
 		}
 	} else {
+		message := "expanding detached OpenNebula persistent disks is not supported because one.image.update does not change canonical image size; attach the volume and retry expansion"
 		if !allowDetached {
-			return 0, &datastoreConfigError{
-				message: "expanding detached OpenNebula persistent disks is disabled; attach the volume or enable the detachedDiskExpansion feature gate and retry expansion",
-			}
+			message = "expanding detached OpenNebula persistent disks is disabled; attach the volume or enable the detachedDiskExpansion feature gate and retry expansion"
 		}
-
-		tpl := img.NewTemplate()
-		tpl.Add(imk.Size, int(sizeMB))
-		if err := p.ctrl.Image(volumeID).UpdateContext(ctx, tpl.String(), parameters.Merge); err != nil {
-			return 0, fmt.Errorf("failed to expand detached volume %s via image update: %w", volume, err)
-		}
+		return 0, &datastoreConfigError{message: message}
 	}
 
 	var completedSizeBytes int64
-	if attached {
-		err = p.waitForResourceStatus(volumeID, volumeUsedTimeout, func(resourceID int) (bool, error) {
-			currentSizeBytes, sizeErr := p.attachedDiskSizeBytes(ctx, vmID, diskID, resourceID)
-			if sizeErr != nil {
-				return false, sizeErr
-			}
-			if currentSizeBytes >= size {
-				completedSizeBytes = currentSizeBytes
-				return true, nil
-			}
-			return false, nil
-		})
-	} else {
-		err = p.waitForResourceStatus(volumeID, volumeUsedTimeout, func(resourceID int) (bool, error) {
-			imageInfo, infoErr := p.ctrl.Image(resourceID).Info(true)
-			if infoErr != nil {
-				return false, fmt.Errorf("failed to get volume info after resize: %w", infoErr)
-			}
-			currentSizeBytes := int64(imageInfo.Size * sizeConversion)
-			if currentSizeBytes >= size {
-				completedSizeBytes = currentSizeBytes
-				return true, nil
-			}
-			return false, nil
-		})
-	}
+	err = p.waitForResourceStatus(volumeID, volumeUsedTimeout, func(resourceID int) (bool, error) {
+		currentSizeBytes, sizeErr := p.attachedDiskSizeBytes(ctx, vmID, diskID, resourceID)
+		if sizeErr != nil {
+			return false, sizeErr
+		}
+		if currentSizeBytes >= size {
+			completedSizeBytes = currentSizeBytes
+			return true, nil
+		}
+		return false, nil
+	})
 	if err != nil {
 		return 0, fmt.Errorf("failed waiting for volume resize to complete: %w", err)
+	}
+	if err := p.persistCSIRequestedSize(ctx, volumeID, volume, size, sizeMB); err != nil {
+		return 0, err
 	}
 
 	if completedSizeBytes == 0 {
@@ -553,6 +544,9 @@ func (p *PersistentDiskVolumeProvider) AttachVolume(ctx context.Context, volume 
 		if attachErr != nil {
 			return fmt.Errorf("%w (initial attach error: %v)", err, attachErr)
 		}
+		return err
+	}
+	if err := p.restoreAttachedVolumeRequestedSize(ctx, volume, node, volumeID, nodeID, hotplugTimeout); err != nil {
 		return err
 	}
 	return nil
@@ -1092,12 +1086,48 @@ func (p *PersistentDiskVolumeProvider) attachedDiskSizeBytes(ctx context.Context
 	return 0, fmt.Errorf("failed to locate attached disk %d for volume %d on vm %d", diskID, volumeID, vmID)
 }
 
+func (p *PersistentDiskVolumeProvider) attachedVolumeDiskOnNode(ctx context.Context, vmID, volumeID int) (int, int64, error) {
+	vmInfo, err := p.ctrl.VM(vmID).InfoContext(ctx, true)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to inspect vm %d while locating attached volume %d: %w", vmID, volumeID, err)
+	}
+
+	for _, disk := range vmInfo.Template.GetDisks() {
+		diskImageID, diskErr := disk.GetI(shared.ImageID)
+		if diskErr != nil || diskImageID != volumeID {
+			continue
+		}
+
+		diskID, idErr := disk.GetI(shared.DiskID)
+		if idErr != nil {
+			return 0, 0, fmt.Errorf("failed to determine disk ID for volume %d on vm %d: %w", volumeID, vmID, idErr)
+		}
+
+		diskSizeBytes, sizeErr := diskSizeBytesFromTemplate(disk)
+		if sizeErr != nil {
+			return 0, 0, fmt.Errorf("failed to determine attached size for volume %d on vm %d disk %d: %w", volumeID, vmID, diskID, sizeErr)
+		}
+
+		return diskID, diskSizeBytes, nil
+	}
+
+	return 0, 0, fmt.Errorf("failed to locate attached volume %d on vm %d", volumeID, vmID)
+}
+
 func diskSizeBytesFromTemplate(disk shared.Disk) (int64, error) {
 	sizeMB, err := disk.GetI(shared.Size)
 	if err != nil {
 		return 0, err
 	}
 	return int64(sizeMB) * sizeConversion, nil
+}
+
+func bytesToMiBRoundUp(size int64) int64 {
+	sizeMB := size / sizeConversion
+	if size%sizeConversion != 0 {
+		sizeMB++
+	}
+	return sizeMB
 }
 
 func (p *PersistentDiskVolumeProvider) VolumeExists(ctx context.Context, volume string) (int, int, error) {
@@ -1109,7 +1139,161 @@ func (p *PersistentDiskVolumeProvider) VolumeExists(ctx context.Context, volume 
 	if err != nil {
 		return -1, -1, fmt.Errorf("failed to get volume info: %w", err)
 	}
-	return imgID, (img.Size * sizeConversion), nil
+	canonicalSizeBytes := int64(img.Size) * sizeConversion
+	requestedSizeBytes, metadataErr := csiRequestedSizeBytesFromTemplate(img.Template)
+	if metadataErr != nil {
+		klog.Warningf("volume %s image %d has invalid %s metadata: %v", volume, imgID, csiRequestedSizeBytesTag, metadataErr)
+	}
+	effectiveSizeBytes := effectiveVolumeSizeBytes(canonicalSizeBytes, requestedSizeBytes)
+	if requestedSizeBytes > canonicalSizeBytes {
+		klog.V(1).InfoS("Using CSI requested size because OpenNebula canonical image size is lower",
+			"volume", volume,
+			"imageID", imgID,
+			"canonicalSizeBytes", canonicalSizeBytes,
+			"csiRequestedSizeBytes", requestedSizeBytes,
+			"effectiveSizeBytes", effectiveSizeBytes)
+	}
+	return imgID, int(effectiveSizeBytes), nil
+}
+
+func effectiveVolumeSizeBytes(canonicalSizeBytes, requestedSizeBytes int64) int64 {
+	if requestedSizeBytes > canonicalSizeBytes {
+		return requestedSizeBytes
+	}
+	return canonicalSizeBytes
+}
+
+func csiRequestedSizeBytesFromTemplate(t img.Template) (int64, error) {
+	var requestedSizeBytes int64
+	var parseErrs []string
+	for _, raw := range t.GetStrs(csiRequestedSizeBytesTag) {
+		value := strings.TrimSpace(raw)
+		if value == "" {
+			continue
+		}
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed <= 0 {
+			parseErrs = append(parseErrs, value)
+			continue
+		}
+		if parsed > requestedSizeBytes {
+			requestedSizeBytes = parsed
+		}
+	}
+	if requestedSizeBytes > 0 {
+		return requestedSizeBytes, nil
+	}
+
+	for _, raw := range t.GetStrs(csiRequestedSizeMBTag) {
+		value := strings.TrimSpace(raw)
+		if value == "" {
+			continue
+		}
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed <= 0 {
+			parseErrs = append(parseErrs, value)
+			continue
+		}
+		sizeBytes := parsed * sizeConversion
+		if sizeBytes > requestedSizeBytes {
+			requestedSizeBytes = sizeBytes
+		}
+	}
+	if requestedSizeBytes > 0 {
+		return requestedSizeBytes, nil
+	}
+	if len(parseErrs) > 0 {
+		return 0, fmt.Errorf("invalid CSI requested size values: %s", strings.Join(parseErrs, ","))
+	}
+	return 0, nil
+}
+
+func (p *PersistentDiskVolumeProvider) persistCSIRequestedSize(ctx context.Context, volumeID int, volume string, requestedSizeBytes, requestedSizeMB int64) error {
+	tpl := img.NewTemplate()
+	tpl.AddPair(csiRequestedSizeBytesTag, requestedSizeBytes)
+	tpl.AddPair(csiRequestedSizeMBTag, requestedSizeMB)
+	tpl.AddPair(csiExpandedByTag, csiExpandedByValue)
+	tpl.AddPair(csiExpandedAtTag, time.Now().UTC().Format(time.RFC3339))
+
+	if err := p.ctrl.Image(volumeID).UpdateContext(ctx, tpl.String(), parameters.Merge); err != nil {
+		return fmt.Errorf("failed to persist CSI requested size metadata for volume %s image %d: %w", volume, volumeID, err)
+	}
+
+	klog.V(1).InfoS("Persisted CSI requested size metadata",
+		"volume", volume,
+		"imageID", volumeID,
+		"requestedSizeBytes", requestedSizeBytes,
+		"requestedSizeMB", requestedSizeMB)
+	return nil
+}
+
+func (p *PersistentDiskVolumeProvider) restoreAttachedVolumeRequestedSize(ctx context.Context, volume, node string, volumeID, nodeID int, timeout time.Duration) error {
+	imageInfo, err := p.ctrl.Image(volumeID).InfoContext(ctx, true)
+	if err != nil {
+		return fmt.Errorf("failed to inspect image %d before attach size restore: %w", volumeID, err)
+	}
+
+	requestedSizeBytes, metadataErr := csiRequestedSizeBytesFromTemplate(imageInfo.Template)
+	if metadataErr != nil {
+		return fmt.Errorf("invalid CSI requested size metadata for volume %s image %d: %w", volume, volumeID, metadataErr)
+	}
+	if requestedSizeBytes <= 0 {
+		return nil
+	}
+
+	canonicalSizeBytes := int64(imageInfo.Size) * sizeConversion
+	if requestedSizeBytes > canonicalSizeBytes {
+		klog.V(1).InfoS("OpenNebula canonical image size is lower than CSI requested size",
+			"volume", volume,
+			"imageID", volumeID,
+			"canonicalSizeBytes", canonicalSizeBytes,
+			"csiRequestedSizeBytes", requestedSizeBytes)
+	}
+
+	diskID, attachedSizeBytes, err := p.attachedVolumeDiskOnNode(ctx, nodeID, volumeID)
+	if err != nil {
+		return err
+	}
+	shouldRestore, requestedSizeMB := attachRestoreResizePlan(attachedSizeBytes, requestedSizeBytes)
+	if !shouldRestore {
+		return nil
+	}
+
+	klog.V(1).InfoS("Restoring attached volume size from CSI requested size metadata",
+		"volume", volume,
+		"node", node,
+		"imageID", volumeID,
+		"nodeID", nodeID,
+		"diskID", diskID,
+		"attachedSizeBytes", attachedSizeBytes,
+		"requestedSizeBytes", requestedSizeBytes,
+		"requestedSizeMB", requestedSizeMB)
+
+	if err := p.ctrl.VM(nodeID).Disk(diskID).ResizeContext(ctx, strconv.FormatInt(requestedSizeMB, 10)); err != nil {
+		if currentSizeBytes, sizeErr := p.attachedDiskSizeBytes(ctx, nodeID, diskID, volumeID); sizeErr == nil && currentSizeBytes >= requestedSizeBytes {
+			return nil
+		}
+		return fmt.Errorf("failed to restore expanded volume %s on node %s vm %d disk %d: %w", volume, node, nodeID, diskID, err)
+	}
+
+	err = p.waitForResourceStatus(volumeID, timeout, func(resourceID int) (bool, error) {
+		currentSizeBytes, sizeErr := p.attachedDiskSizeBytes(ctx, nodeID, diskID, resourceID)
+		if sizeErr != nil {
+			return false, sizeErr
+		}
+		return currentSizeBytes >= requestedSizeBytes, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed waiting for restored volume size on volume %s node %s: %w", volume, node, err)
+	}
+	return nil
+}
+
+func attachRestoreResizePlan(attachedSizeBytes, requestedSizeBytes int64) (bool, int64) {
+	if requestedSizeBytes <= 0 || attachedSizeBytes >= requestedSizeBytes {
+		return false, 0
+	}
+	return true, bytesToMiBRoundUp(requestedSizeBytes)
 }
 
 func isInsufficientCapacityError(err error) bool {
@@ -1396,7 +1580,11 @@ func (p *PersistentDiskVolumeProvider) resolveDetachVolumeSizeBytes(ctx context.
 	if image.Size <= 0 {
 		return 0, fmt.Errorf("volume %d size is unavailable", volumeID)
 	}
-	return int64(image.Size * sizeConversion), nil
+	requestedSizeBytes, metadataErr := csiRequestedSizeBytesFromTemplate(image.Template)
+	if metadataErr != nil {
+		klog.Warningf("volume image %d has invalid %s metadata while resolving detach size: %v", volumeID, csiRequestedSizeBytesTag, metadataErr)
+	}
+	return effectiveVolumeSizeBytes(int64(image.Size)*sizeConversion, requestedSizeBytes), nil
 }
 
 func (p *PersistentDiskVolumeProvider) waitForResourceStatus(volumeID int, timeout time.Duration, checkFunc func(int) (bool, error)) error {

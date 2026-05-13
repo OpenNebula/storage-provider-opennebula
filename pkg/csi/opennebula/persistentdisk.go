@@ -47,6 +47,7 @@ const (
 	csiExpandedByTag         = "CSI_EXPANDED_BY"
 	csiExpandedAtTag         = "CSI_EXPANDED_AT"
 	csiExpandedByValue       = "csi.opennebula.io"
+	csiMetadataTimeFormat    = time.RFC3339
 )
 
 type PersistentDiskVolumeProvider struct {
@@ -1142,7 +1143,10 @@ func (p *PersistentDiskVolumeProvider) VolumeExists(ctx context.Context, volume 
 	canonicalSizeBytes := int64(img.Size) * sizeConversion
 	requestedSizeBytes, metadataErr := csiRequestedSizeBytesFromTemplate(img.Template)
 	if metadataErr != nil {
-		klog.Warningf("volume %s image %d has invalid %s metadata: %v", volume, imgID, csiRequestedSizeBytesTag, metadataErr)
+		return -1, -1, fmt.Errorf("volume %s image %d has invalid CSI requested size metadata: %w", volume, imgID, metadataErr)
+	}
+	if requestedSizeBytes <= 0 && hasCSIExpansionMarker(img.Template) {
+		return -1, -1, fmt.Errorf("volume %s image %d has incomplete CSI expansion metadata: %s or %s is missing", volume, imgID, csiRequestedSizeBytesTag, csiRequestedSizeMBTag)
 	}
 	effectiveSizeBytes := effectiveVolumeSizeBytes(canonicalSizeBytes, requestedSizeBytes)
 	if requestedSizeBytes > canonicalSizeBytes {
@@ -1208,15 +1212,81 @@ func csiRequestedSizeBytesFromTemplate(t img.Template) (int64, error) {
 	return 0, nil
 }
 
-func (p *PersistentDiskVolumeProvider) persistCSIRequestedSize(ctx context.Context, volumeID int, volume string, requestedSizeBytes, requestedSizeMB int64) error {
-	tpl := img.NewTemplate()
-	tpl.AddPair(csiRequestedSizeBytesTag, requestedSizeBytes)
-	tpl.AddPair(csiRequestedSizeMBTag, requestedSizeMB)
-	tpl.AddPair(csiExpandedByTag, csiExpandedByValue)
-	tpl.AddPair(csiExpandedAtTag, time.Now().UTC().Format(time.RFC3339))
+func verifyCSIRequestedSizeMetadata(t img.Template, requestedSizeBytes, requestedSizeMB int64) error {
+	rawBytes, err := t.GetStr(csiRequestedSizeBytesTag)
+	if err != nil || strings.TrimSpace(rawBytes) == "" {
+		return fmt.Errorf("%s is missing", csiRequestedSizeBytesTag)
+	}
+	persistedBytes, err := strconv.ParseInt(strings.TrimSpace(rawBytes), 10, 64)
+	if err != nil {
+		return fmt.Errorf("%s is invalid: %w", csiRequestedSizeBytesTag, err)
+	}
+	if persistedBytes < requestedSizeBytes {
+		return fmt.Errorf("%s persisted value %d is lower than requested value %d", csiRequestedSizeBytesTag, persistedBytes, requestedSizeBytes)
+	}
 
-	if err := p.ctrl.Image(volumeID).UpdateContext(ctx, tpl.String(), parameters.Merge); err != nil {
+	rawMB, err := t.GetStr(csiRequestedSizeMBTag)
+	if err != nil || strings.TrimSpace(rawMB) == "" {
+		return fmt.Errorf("%s is missing", csiRequestedSizeMBTag)
+	}
+	persistedMB, err := strconv.ParseInt(strings.TrimSpace(rawMB), 10, 64)
+	if err != nil {
+		return fmt.Errorf("%s is invalid: %w", csiRequestedSizeMBTag, err)
+	}
+	if persistedMB < requestedSizeMB {
+		return fmt.Errorf("%s persisted value %d is lower than requested value %d", csiRequestedSizeMBTag, persistedMB, requestedSizeMB)
+	}
+
+	if expandedBy, err := t.GetStr(csiExpandedByTag); err != nil || strings.TrimSpace(expandedBy) != csiExpandedByValue {
+		return fmt.Errorf("%s is missing or invalid", csiExpandedByTag)
+	}
+	if expandedAt, err := t.GetStr(csiExpandedAtTag); err != nil || strings.TrimSpace(expandedAt) == "" {
+		return fmt.Errorf("%s is missing", csiExpandedAtTag)
+	}
+	return nil
+}
+
+func hasCSIExpansionMarker(t img.Template) bool {
+	if expandedBy, err := t.GetStr(csiExpandedByTag); err == nil && strings.TrimSpace(expandedBy) != "" {
+		return true
+	}
+	if expandedAt, err := t.GetStr(csiExpandedAtTag); err == nil && strings.TrimSpace(expandedAt) != "" {
+		return true
+	}
+	return false
+}
+
+func csiRequestedSizeTemplate(requestedSizeBytes, requestedSizeMB int64, expandedAt time.Time) (string, error) {
+	tpl := img.NewTemplate()
+	values := map[string]string{
+		csiRequestedSizeBytesTag: strconv.FormatInt(requestedSizeBytes, 10),
+		csiRequestedSizeMBTag:    strconv.FormatInt(requestedSizeMB, 10),
+		csiExpandedByTag:         csiExpandedByValue,
+		csiExpandedAtTag:         expandedAt.UTC().Format(csiMetadataTimeFormat),
+	}
+	for _, key := range []string{csiRequestedSizeBytesTag, csiRequestedSizeMBTag, csiExpandedByTag, csiExpandedAtTag} {
+		if err := tpl.AddPair(key, values[key]); err != nil {
+			return "", fmt.Errorf("failed to build CSI requested size metadata %s: %w", key, err)
+		}
+	}
+	return tpl.String(), nil
+}
+
+func (p *PersistentDiskVolumeProvider) persistCSIRequestedSize(ctx context.Context, volumeID int, volume string, requestedSizeBytes, requestedSizeMB int64) error {
+	tpl, err := csiRequestedSizeTemplate(requestedSizeBytes, requestedSizeMB, time.Now())
+	if err != nil {
+		return err
+	}
+
+	if err := p.ctrl.Image(volumeID).UpdateContext(ctx, tpl, parameters.Merge); err != nil {
 		return fmt.Errorf("failed to persist CSI requested size metadata for volume %s image %d: %w", volume, volumeID, err)
+	}
+	imageInfo, err := p.ctrl.Image(volumeID).InfoContext(ctx, true)
+	if err != nil {
+		return fmt.Errorf("failed to verify CSI requested size metadata for volume %s image %d: %w", volume, volumeID, err)
+	}
+	if metadataErr := verifyCSIRequestedSizeMetadata(imageInfo.Template, requestedSizeBytes, requestedSizeMB); metadataErr != nil {
+		return fmt.Errorf("failed to verify CSI requested size metadata for volume %s image %d: %w", volume, volumeID, metadataErr)
 	}
 
 	klog.V(1).InfoS("Persisted CSI requested size metadata",
@@ -1238,6 +1308,9 @@ func (p *PersistentDiskVolumeProvider) restoreAttachedVolumeRequestedSize(ctx co
 		return fmt.Errorf("invalid CSI requested size metadata for volume %s image %d: %w", volume, volumeID, metadataErr)
 	}
 	if requestedSizeBytes <= 0 {
+		if hasCSIExpansionMarker(imageInfo.Template) {
+			return fmt.Errorf("volume %s image %d has incomplete CSI expansion metadata: %s or %s is missing", volume, volumeID, csiRequestedSizeBytesTag, csiRequestedSizeMBTag)
+		}
 		return nil
 	}
 
@@ -1583,6 +1656,9 @@ func (p *PersistentDiskVolumeProvider) resolveDetachVolumeSizeBytes(ctx context.
 	requestedSizeBytes, metadataErr := csiRequestedSizeBytesFromTemplate(image.Template)
 	if metadataErr != nil {
 		klog.Warningf("volume image %d has invalid %s metadata while resolving detach size: %v", volumeID, csiRequestedSizeBytesTag, metadataErr)
+	}
+	if requestedSizeBytes <= 0 && hasCSIExpansionMarker(image.Template) {
+		klog.Warningf("volume image %d has incomplete CSI expansion metadata while resolving detach size: %s or %s is missing", volumeID, csiRequestedSizeBytesTag, csiRequestedSizeMBTag)
 	}
 	return effectiveVolumeSizeBytes(int64(image.Size)*sizeConversion, requestedSizeBytes), nil
 }

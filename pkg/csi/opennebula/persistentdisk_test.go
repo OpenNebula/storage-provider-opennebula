@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -250,6 +251,40 @@ func TestCSIRequestedSizeMetadataReportsInvalidValues(t *testing.T) {
 	require.Error(t, err)
 	assert.Zero(t, sizeBytes)
 	assert.Contains(t, err.Error(), "invalid CSI requested size")
+}
+
+func TestCSIRequestedSizeTemplateIncludesAllExpansionTags(t *testing.T) {
+	expandedAt := time.Date(2026, 5, 13, 13, 40, 57, 0, time.UTC)
+
+	tpl, err := csiRequestedSizeTemplate(4294967296, 4096, expandedAt)
+	require.NoError(t, err)
+
+	assert.Contains(t, tpl, `CSI_REQUESTED_SIZE_BYTES="4294967296"`)
+	assert.Contains(t, tpl, `CSI_REQUESTED_SIZE_MB="4096"`)
+	assert.Contains(t, tpl, `CSI_EXPANDED_BY="csi.opennebula.io"`)
+	assert.Contains(t, tpl, `CSI_EXPANDED_AT="2026-05-13T13:40:57Z"`)
+	assert.Len(t, strings.Split(tpl, "\n"), 4)
+}
+
+func TestHasCSIExpansionMarkerDetectsPartialMetadata(t *testing.T) {
+	tpl := img.NewTemplate()
+	tpl.AddPair(csiExpandedByTag, csiExpandedByValue)
+
+	assert.True(t, hasCSIExpansionMarker(*tpl))
+
+	sizeBytes, err := csiRequestedSizeBytesFromTemplate(*tpl)
+	require.NoError(t, err)
+	assert.Zero(t, sizeBytes)
+}
+
+func TestVerifyCSIRequestedSizeMetadataRequiresRequestedSizeFields(t *testing.T) {
+	tpl := img.NewTemplate()
+	tpl.AddPair(csiExpandedByTag, csiExpandedByValue)
+	tpl.AddPair(csiExpandedAtTag, "2026-05-13T13:40:57Z")
+
+	err := verifyCSIRequestedSizeMetadata(*tpl, 4294967296, 4096)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), csiRequestedSizeBytesTag)
 }
 
 func TestEffectiveVolumeSizeUsesMaxCanonicalAndCSIRequestedSize(t *testing.T) {

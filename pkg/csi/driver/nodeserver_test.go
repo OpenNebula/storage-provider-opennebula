@@ -852,6 +852,65 @@ func TestNodeExpandVolume(t *testing.T) {
 		assert.Equal(t, 1, sleepCalls)
 		assert.Equal(t, 1, resizeCalls)
 	})
+
+	t.Run("accepts ext4 filesystem overhead after successful resize", func(t *testing.T) {
+		originalStatfs := nodeVolumePathFS
+		originalSleep := nodeDeviceSleep
+		originalNow := nodeNow
+		originalResizeFS := nodeResizeFS
+		originalGOOS := nodeRuntimeGOOS
+		t.Cleanup(func() {
+			nodeVolumePathFS = originalStatfs
+			nodeDeviceSleep = originalSleep
+			nodeNow = originalNow
+			nodeResizeFS = originalResizeFS
+			nodeRuntimeGOOS = originalGOOS
+		})
+
+		const required4Gi = int64(4 * 1024 * 1024 * 1024)
+		const ext4FilesystemBytes = int64(4152066048)
+
+		volumePath := t.TempDir()
+		devicePath := filepath.Join(t.TempDir(), "device")
+		assert.NoError(t, os.WriteFile(devicePath, []byte("x"), 0o644))
+		assert.NoError(t, os.Truncate(devicePath, required4Gi))
+
+		ns := getTestNodeServerWithMountPoints([]mount.MountPoint{
+			{Path: volumePath, Device: devicePath},
+		})
+		ns.Driver.PluginConfig.OverrideVal(config.NodeExpandVerifyTimeoutSecondsVar, 10)
+		ns.Driver.PluginConfig.OverrideVal(config.NodeExpandRetryIntervalSecondsVar, 2)
+		ns.Driver.PluginConfig.OverrideVal(config.NodeExpandSizeToleranceBytesVar, 128*1024*1024)
+
+		nodeRuntimeGOOS = "linux"
+		now := time.Unix(0, 0)
+		nodeNow = func() time.Time { return now }
+		nodeDeviceSleep = func(d time.Duration) { now = now.Add(d) }
+
+		resizeCalls := 0
+		nodeResizeFS = func(_ exec.Interface, _, _ string) (bool, error) {
+			resizeCalls++
+			return true, nil
+		}
+		setFilesystemBytesSequence([]int64{ext4FilesystemBytes})
+
+		response, err := ns.NodeExpandVolume(context.Background(), &csi.NodeExpandVolumeRequest{
+			VolumeId:          "test-volume-id",
+			VolumePath:        volumePath,
+			StagingTargetPath: volumePath,
+			CapacityRange: &csi.CapacityRange{
+				RequiredBytes: required4Gi,
+			},
+			VolumeCapability: &csi.VolumeCapability{
+				AccessType: &csi.VolumeCapability_Mount{
+					Mount: &csi.VolumeCapability_MountVolume{FsType: "ext4"},
+				},
+			},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, &csi.NodeExpandVolumeResponse{CapacityBytes: required4Gi}, response)
+		assert.Equal(t, 1, resizeCalls)
+	})
 }
 
 func TestNodeGetCapabilities(t *testing.T) {

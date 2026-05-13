@@ -58,6 +58,7 @@ const (
 	defaultNodeExpandTimeout    = 120 * time.Second
 	defaultNodeExpandRetry      = 2 * time.Second
 	defaultNodeExpandTolerance  = int64(128 * 1024 * 1024)
+	minNodeExpandFSTolerance    = int64(256 * 1024 * 1024)
 	minNodeExpandTimeout        = 10 * time.Second
 	minNodeExpandRetry          = time.Second
 )
@@ -707,9 +708,14 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 	}
 
 	policy := ns.nodeExpandPolicy()
-	targetMinBytes := requiredBytes - policy.sizeToleranceBytes
-	if targetMinBytes < 0 {
-		targetMinBytes = 0
+	deviceTargetMinBytes := requiredBytes - policy.sizeToleranceBytes
+	if deviceTargetMinBytes < 0 {
+		deviceTargetMinBytes = 0
+	}
+	fsToleranceBytes := nodeExpandFilesystemTolerance(requiredBytes, policy.sizeToleranceBytes)
+	fsTargetMinBytes := requiredBytes - fsToleranceBytes
+	if fsTargetMinBytes < 0 {
+		fsTargetMinBytes = 0
 	}
 
 	deadline := nodeNow().Add(policy.verifyTimeout)
@@ -729,7 +735,7 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 			return nil, status.Errorf(codes.Internal, "failed to collect device size for volume %s at %s: %v", volumeID, devicePath, err)
 		}
 
-		if lastDeviceBytes < targetMinBytes {
+		if lastDeviceBytes < deviceTargetMinBytes {
 			if !nodeNow().Before(deadline) {
 				ns.recordNodeExpandOperation(started, "disk", "deadline_exceeded")
 				klog.V(0).InfoS("NodeExpandVolume timed out waiting for device size",
@@ -738,14 +744,15 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 					"volumePath", volumePath,
 					"devicePath", devicePath,
 					"requiredBytes", requiredBytes,
-					"targetMinBytes", targetMinBytes,
+					"targetMinBytes", deviceTargetMinBytes,
+					"toleranceBytes", policy.sizeToleranceBytes,
 					"deviceBytes", lastDeviceBytes,
 					"filesystemBytes", lastFSBytes,
 					"attempts", attempts)
 				return nil, status.Errorf(
 					codes.DeadlineExceeded,
 					"filesystem resize did not converge for volume %s: requested_bytes=%d target_min_bytes=%d device_bytes=%d filesystem_bytes=%d attempts=%d",
-					volumeID, requiredBytes, targetMinBytes, lastDeviceBytes, lastFSBytes, attempts,
+					volumeID, requiredBytes, deviceTargetMinBytes, lastDeviceBytes, lastFSBytes, attempts,
 				)
 			}
 
@@ -755,7 +762,8 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 				"volumePath", volumePath,
 				"devicePath", devicePath,
 				"requiredBytes", requiredBytes,
-				"targetMinBytes", targetMinBytes,
+				"targetMinBytes", deviceTargetMinBytes,
+				"toleranceBytes", policy.sizeToleranceBytes,
 				"deviceBytes", lastDeviceBytes,
 				"attempt", attempts)
 			nodeDeviceSleep(policy.retryInterval)
@@ -774,7 +782,7 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 			return nil, status.Errorf(codes.Internal, "failed to collect filesystem size for volume %s at %s: %v", volumeID, volumePath, err)
 		}
 
-		if lastFSBytes >= targetMinBytes {
+		if lastFSBytes >= fsTargetMinBytes {
 			ns.recordNodeExpandOperation(started, "disk", "success")
 			klog.V(1).InfoS("NodeExpandVolume converged",
 				"method", "NodeExpandVolume",
@@ -782,7 +790,8 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 				"volumePath", volumePath,
 				"devicePath", devicePath,
 				"requiredBytes", requiredBytes,
-				"targetMinBytes", targetMinBytes,
+				"targetMinBytes", fsTargetMinBytes,
+				"toleranceBytes", fsToleranceBytes,
 				"deviceBytes", lastDeviceBytes,
 				"filesystemBytes", lastFSBytes,
 				"resized", resized,
@@ -800,7 +809,8 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 				"volumePath", volumePath,
 				"devicePath", devicePath,
 				"requiredBytes", requiredBytes,
-				"targetMinBytes", targetMinBytes,
+				"targetMinBytes", fsTargetMinBytes,
+				"toleranceBytes", fsToleranceBytes,
 				"deviceBytes", lastDeviceBytes,
 				"filesystemBytes", lastFSBytes,
 				"resized", resized,
@@ -808,7 +818,7 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 			return nil, status.Errorf(
 				codes.DeadlineExceeded,
 				"filesystem resize did not converge for volume %s: requested_bytes=%d target_min_bytes=%d device_bytes=%d filesystem_bytes=%d attempts=%d",
-				volumeID, requiredBytes, targetMinBytes, lastDeviceBytes, lastFSBytes, attempts,
+				volumeID, requiredBytes, fsTargetMinBytes, lastDeviceBytes, lastFSBytes, attempts,
 			)
 		}
 
@@ -818,7 +828,8 @@ func (ns *NodeServer) NodeExpandVolume(_ context.Context, req *csi.NodeExpandVol
 			"volumePath", volumePath,
 			"devicePath", devicePath,
 			"requiredBytes", requiredBytes,
-			"targetMinBytes", targetMinBytes,
+			"targetMinBytes", fsTargetMinBytes,
+			"toleranceBytes", fsToleranceBytes,
 			"deviceBytes", lastDeviceBytes,
 			"filesystemBytes", lastFSBytes,
 			"resized", resized,
@@ -864,6 +875,21 @@ func (ns *NodeServer) nodeExpandPolicy() nodeExpandPolicy {
 	}
 
 	return policy
+}
+
+func nodeExpandFilesystemTolerance(requiredBytes, configuredToleranceBytes int64) int64 {
+	tolerance := configuredToleranceBytes
+	if tolerance < minNodeExpandFSTolerance {
+		tolerance = minNodeExpandFSTolerance
+	}
+	percentTolerance := requiredBytes / 20
+	if percentTolerance > tolerance {
+		tolerance = percentTolerance
+	}
+	if tolerance < 0 {
+		return 0
+	}
+	return tolerance
 }
 
 func (ns *NodeServer) filesystemSizeBytes(volumePath string) (int64, error) {

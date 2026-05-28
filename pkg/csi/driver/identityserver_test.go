@@ -202,27 +202,61 @@ func TestGetPluginCapabilities(t *testing.T) {
 		t.Fatal("expected non-nil response")
 	}
 
-	expectedTypes := map[csi.PluginCapability_Service_Type]bool{
-		csi.PluginCapability_Service_CONTROLLER_SERVICE: false,
-	}
-
+	var sawControllerService bool
+	var sawOnlineExpansion bool
 	for _, cap := range resp.Capabilities {
-		service := cap.GetService()
-		if service == nil {
-			t.Errorf("expected service capability, got nil")
+		if service := cap.GetService(); service != nil {
+			if service.Type != csi.PluginCapability_Service_CONTROLLER_SERVICE {
+				t.Errorf("unexpected service capability type: %v", service.Type)
+			} else {
+				sawControllerService = true
+			}
 			continue
 		}
-		if _, ok := expectedTypes[service.Type]; !ok {
-			t.Errorf("unexpected capability type: %v", service.Type)
-		} else {
-			expectedTypes[service.Type] = true
+
+		if expansion := cap.GetVolumeExpansion(); expansion != nil {
+			if expansion.Type != csi.PluginCapability_VolumeExpansion_ONLINE {
+				t.Errorf("unexpected volume expansion capability type: %v", expansion.Type)
+			} else {
+				sawOnlineExpansion = true
+			}
+			continue
+		}
+
+		t.Errorf("unexpected plugin capability: %#v", cap.Type)
+	}
+
+	if !sawControllerService {
+		t.Error("missing controller service capability")
+	}
+	if !sawOnlineExpansion {
+		t.Error("missing online volume expansion capability")
+	}
+}
+
+func TestGetPluginCapabilitiesIncludesTopologyCapabilityWhenEnabled(t *testing.T) {
+	driver := &Driver{
+		name:         "test-driver",
+		version:      "1.0.0",
+		featureGates: FeatureGates{TopologyAccessibility: true},
+	}
+
+	is := NewIdentityServer(driver)
+	resp, err := is.GetPluginCapabilities(context.Background(), &csi.GetPluginCapabilitiesRequest{})
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var sawTopology bool
+	for _, cap := range resp.Capabilities {
+		if service := cap.GetService(); service != nil && service.Type == csi.PluginCapability_Service_VOLUME_ACCESSIBILITY_CONSTRAINTS {
+			sawTopology = true
 		}
 	}
 
-	for capType, found := range expectedTypes {
-		if !found {
-			t.Errorf("missing expected capability: %v", capType)
-		}
+	if !sawTopology {
+		t.Fatal("expected topology accessibility capability")
 	}
 }
 func TestProbe(t *testing.T) {

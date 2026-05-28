@@ -2,8 +2,8 @@
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
-  name: opennebula-csi-node
-  namespace: kube-system
+  name: {{ printf "%s-node" (include "opennebula-csi.fullname" .) }}
+  namespace: {{ include "opennebula-csi.namespace" . }}
 spec:
   updateStrategy:
     rollingUpdate:
@@ -11,32 +11,67 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: opennebula-csi-node
+      app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: node
   template:
     metadata:
       labels:
-        app: opennebula-csi-node
+        app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: node
       annotations:
         kubectl.kubernetes.io/default-container: opennebula-csi
+        {{- with .Values.node.podAnnotations }}
+{{ toYaml . | nindent 8 }}
+        {{- end }}
     spec:
-      serviceAccountName: opennebula-csi-node-sa
+      serviceAccountName: {{ include "opennebula-csi.nodeServiceAccountName" . }}
       priorityClassName: system-node-critical
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.node.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.node.affinity }}
+      affinity:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.node.tolerations }}
       tolerations:
-        - operator: "Exists"
+{{ toYaml . | nindent 8 }}
+      {{- end }}
       containers:
-        # Node server container
         - name: opennebula-csi
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.debugPort }}
+          {{- if or .Values.debugPort .Values.metrics.driver.enabled }}
           ports:
+            {{- if .Values.debugPort }}
             - containerPort: {{ .Values.debugPort }}
               name: debug
               protocol: TCP
+            {{- end }}
+            {{- if .Values.metrics.driver.enabled }}
+            - containerPort: {{ .Values.metrics.driver.port }}
+              name: driver-metrics
+              protocol: TCP
+            {{- end }}
           {{- end }}
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(NODE_ID)"
+            - "--v={{ .Values.driver.logLevel }}"
+            - "--vmodule=leaderelection=0"
+            {{- with .Values.driver.extraArgs }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.node.extraArgs }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
@@ -44,33 +79,44 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: ONE_XMLRPC
-              value: "{{ .Values.oneApiEndpoint }}"
-            - name: ONE_AUTH
-              valueFrom:
-                secretKeyRef:
-                  name: csi-opennebula-auth
-                  key: credentials
+{{ include "opennebula-csi.driverCommonEnv" (dict "context" . "inventoryEnabledOverride" false) | nindent 12 }}
+            {{- with .Values.node.extraEnv }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.node.resources }}
+          resources:
+{{ toYaml . | nindent 12 }}
+          {{- end }}
           securityContext:
             privileged: true
             capabilities:
-              add: ["SYS_ADMIN"]
+              add:
+                - SYS_ADMIN
             allowPrivilegeEscalation: true
           volumeMounts:
             - name: csi-socket-dir
               mountPath: /csi
             - name: pods-mount-dir
               mountPath: /var/lib/kubelet
-              mountPropagation: "Bidirectional"
+              mountPropagation: Bidirectional
             - name: device-dir
               mountPath: /dev
-        # Registrar sidecar https://kubernetes-csi.github.io/docs/node-driver-registrar.html
         - name: csi-node-driver-registrar
           image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - containerPort: {{ .Values.metrics.ports.registrar }}
+              name: reg-metrics
+              protocol: TCP
+          {{- end }}
           args:
             - "--v=5"
+            - "--vmodule=leaderelection=0"
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+            {{- if .Values.metrics.enabled }}
+            - "--http-endpoint=:{{ .Values.metrics.ports.registrar }}"
+            {{- end }}
           env:
             - name: ADDRESS
               value: /csi/csi.sock
@@ -85,7 +131,6 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
-        # Liveness probe: https://kubernetes-csi.github.io/docs/livenessprobe.html
         - name: liveness-probe
           imagePullPolicy: IfNotPresent
           image: registry.k8s.io/sig-storage/livenessprobe:v2.16.0
@@ -94,8 +139,8 @@ spec:
             - --probe-timeout=3s
             - --health-port=9808
           volumeMounts:
-          - name: csi-socket-dir
-            mountPath: /csi
+            - name: csi-socket-dir
+              mountPath: /csi
       volumes:
         - name: csi-socket-dir
           hostPath:

@@ -1,5 +1,4 @@
 -include .env
-export
 
 # Makefile for development environment setup
 

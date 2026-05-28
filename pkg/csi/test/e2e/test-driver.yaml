@@ -6,13 +6,13 @@ DriverInfo:
   Name: csi.opennebula.io
   Capabilities:
     block: true
-    controllerExpansion: false
+    controllerExpansion: true
     exec: true
     multipods: true
     persistence: true
-    pvcDataSource: false
+    pvcDataSource: true
     snapshotDataSource: false
-    rwx: false
+    rwx: true
   SupportedFsType:
     ext4: {}
     ext3: {}

@@ -1,4 +1,4 @@
-module github.com/OpenNebula/storage-provider-opennebula
+module github.com/SparkAIUR/storage-provider-opennebula
 
 go 1.24.0
 

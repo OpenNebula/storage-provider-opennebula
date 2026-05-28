@@ -1,0 +1,20 @@
+# Example values for staging the alpha feature gates added in v0.4.1.
+#
+# Topology accessibility expects Kubernetes nodes to carry:
+#   topology.opennebula.sparkaiur.io/system-ds=<opennebula-system-datastore-id>
+#
+# For ad-hoc testing without node labels you can also inject:
+# driver:
+#   env:
+#     - name: ONE_CSI_NODE_TOPOLOGY_SYSTEM_DS
+#       value: "111"
+
+featureGates:
+  compatibilityAwareSelection: true
+  detachedDiskExpansion: true
+  cephfsExpansion: true
+  cephfsSnapshots: true
+  cephfsClones: true
+  cephfsSelfHealing: true
+  localRWOStaleMountRecovery: true
+  topologyAccessibility: true

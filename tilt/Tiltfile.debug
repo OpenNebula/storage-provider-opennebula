@@ -50,7 +50,7 @@ yaml = helm('../helm/opennebula-csi',
         #'image.tag=' + os.getenv('LOCAL_TAG'), # Will be overridden by Tilt
         'image.pullPolicy=Always',
         'oneApiEndpoint=' + os.getenv('ONE_XMLRPC'),
-        'oneAuth=' + os.getenv('ONE_AUTH'),
+        'credentials.inlineAuth=' + os.getenv('ONE_AUTH'),
         'debugPort=' + os.getenv('DEBUG_PORT', DEFAULT_DEBUG_PORT),  # Default to 5000 if not set
     ]
 )

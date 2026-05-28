@@ -1,0 +1,50 @@
+---
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Validate chart/image version alignment
+        run: bash hack/validate-chart-version-alignment.sh
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Lint chart
+        run: helm lint helm/opennebula-csi
+
+      - name: Render chart with inline credentials
+        run: helm template opennebula-csi helm/opennebula-csi --values examples/helm-values-multi-datastore.yaml
+
+      - name: Render chart with existing secret
+        run: helm template opennebula-csi helm/opennebula-csi --values examples/helm-values-existing-secret.yaml
+
+      - name: Render chart with Ceph example
+        run: helm template opennebula-csi helm/opennebula-csi --values examples/helm-values-ceph-ceph-mode.yaml
+
+      - name: Render chart with CephFS static example
+        run: helm template opennebula-csi helm/opennebula-csi --values examples/helm-values-cephfs-static.yaml
+
+      - name: Render chart with CephFS dynamic example
+        run: helm template opennebula-csi helm/opennebula-csi --values examples/helm-values-cephfs-dynamic.yaml

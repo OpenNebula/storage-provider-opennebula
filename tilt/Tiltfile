@@ -35,7 +35,7 @@ yaml = helm('../helm/opennebula-csi',
         #'image.tag=' + os.getenv('LOCAL_TAG'), # Will be overridden by Tilt
         'image.pullPolicy=Always',
         'oneApiEndpoint=' + os.getenv('ONE_XMLRPC'),
-        'oneAuth=' + os.getenv('ONE_AUTH'),
+        'credentials.inlineAuth=' + os.getenv('ONE_AUTH'),
     ]
 )
 allow_k8s_contexts(os.getenv('WORKLOAD_CLUSTER_NAME') + '-admin@' + os.getenv('WORKLOAD_CLUSTER_NAME')) #for safety reasons

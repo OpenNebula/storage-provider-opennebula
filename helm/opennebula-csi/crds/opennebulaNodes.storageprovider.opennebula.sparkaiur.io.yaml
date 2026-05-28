@@ -1,0 +1,245 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: opennebulanodes.storageprovider.opennebula.sparkaiur.io
+spec:
+  group: storageprovider.opennebula.sparkaiur.io
+  scope: Cluster
+  names:
+    plural: opennebulanodes
+    singular: opennebulanode
+    kind: OpenNebulaNode
+    shortNames:
+      - onenode
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Display
+          type: string
+          jsonPath: .status.displayState
+        - name: VM
+          type: string
+          jsonPath: .status.opennebula.vmName
+        - name: State
+          type: string
+          jsonPath: .status.opennebula.state
+        - name: Hotplug
+          type: string
+          jsonPath: .status.hotplug.diagnosis.classification
+        - name: SystemDS
+          type: string
+          jsonPath: .status.systemDatastoreDisplay
+        - name: Attached
+          type: integer
+          jsonPath: .status.storage.attachedVolumeCount
+        - name: Handles
+          type: string
+          jsonPath: .status.attachedVolumeHandlesDisplay
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                opennebulaVMName:
+                  type: string
+                clusterName:
+                  type: string
+                enabled:
+                  type: boolean
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                phase:
+                  type: string
+                displayState:
+                  type: string
+                activeHotplugPressure:
+                  type: integer
+                  format: int32
+                systemDatastoreDisplay:
+                  type: string
+                attachedVolumeHandlesDisplay:
+                  type: string
+                kubernetes:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    uid:
+                      type: string
+                    providerID:
+                      type: string
+                    labels:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    taints:
+                      type: array
+                      items:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    conditions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                          status:
+                            type: string
+                          reason:
+                            type: string
+                          message:
+                            type: string
+                          lastTransitionTime:
+                            type: string
+                            format: date-time
+                    addresses:
+                      type: array
+                      items:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                opennebula:
+                  type: object
+                  properties:
+                    vmID:
+                      type: integer
+                    vmName:
+                      type: string
+                    state:
+                      type: string
+                    lcmState:
+                      type: string
+                    hostID:
+                      type: integer
+                    hostName:
+                      type: string
+                    clusterID:
+                      type: integer
+                    systemDatastoreID:
+                      type: integer
+                    systemDatastoreName:
+                      type: string
+                storage:
+                  type: object
+                  properties:
+                    topologySystemDatastore:
+                      type: string
+                    attachedVolumeCount:
+                      type: integer
+                      format: int32
+                    attachedVolumeIDs:
+                      type: array
+                      items:
+                        type: string
+                    attachedPersistentDisks:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          volumeHandle:
+                            type: string
+                          persistentDiskID:
+                            type: integer
+                          deviceName:
+                            type: string
+                          claimNamespace:
+                            type: string
+                          claimName:
+                            type: string
+                hotplug:
+                  type: object
+                  properties:
+                    ready:
+                      type: boolean
+                    inCooldown:
+                      type: boolean
+                    cooldownExpiresAt:
+                      type: string
+                      format: date-time
+                    lastCooldownOperation:
+                      type: string
+                    lastCooldownVolume:
+                      type: string
+                    lastObservedAttached:
+                      type: boolean
+                    lastObservedReady:
+                      type: boolean
+                    failureCount:
+                      type: integer
+                    reason:
+                      type: string
+                    pauseUntilReady:
+                      type: boolean
+                    kubernetesReady:
+                      type: boolean
+                    openNebulaReady:
+                      type: boolean
+                    unschedulable:
+                      type: boolean
+                    diagnosis:
+                      type: object
+                      properties:
+                        classification:
+                          type: string
+                        operation:
+                          type: string
+                        volumeHandle:
+                          type: string
+                        persistentDiskID:
+                          type: integer
+                        vmDiskID:
+                          type: integer
+                        diskTarget:
+                          type: string
+                        diskAttachFlag:
+                          type: string
+                        firstObservedAt:
+                          type: string
+                          format: date-time
+                        lastObservedAt:
+                          type: string
+                          format: date-time
+                        lastChangedAt:
+                          type: string
+                          format: date-time
+                        ageSeconds:
+                          type: integer
+                          format: int64
+                        stuckAfterSeconds:
+                          type: integer
+                          format: int64
+                        reason:
+                          type: string
+                        message:
+                          type: string
+                        recommendedAction:
+                          type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string

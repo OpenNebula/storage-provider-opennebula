@@ -1,0 +1,29 @@
+oneApiEndpoint: "http://opennebula.example.internal:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: opennebula-csi-auth
+    key: credentials
+
+driver:
+  defaultDatastores:
+    - "200"
+  datastoreSelectionPolicy: "least-used"
+  allowedDatastoreTypes:
+    - "local"
+    - "ceph"
+
+storageClasses:
+  - name: opennebula-ceph-rbd
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: Immediate
+    mountOptions: []
+    parameters:
+      datastoreIDs: "200"
+      datastoreSelectionPolicy: "least-used"
+      fsType: "ext4"
+      devPrefix: "vd"
+      cache: "none"
+      driver: "raw"
+

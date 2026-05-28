@@ -1,0 +1,78 @@
+---
+name: Staging CephFS Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      values_file:
+        description: Helm values file to use for staging validation
+        required: true
+        default: examples/helm-values-cephfs-dynamic.yaml
+      namespace:
+        description: Namespace where the CSI chart should be installed
+        required: true
+        default: kube-system
+      release_name:
+        description: Helm release name
+        required: true
+        default: opennebula-csi
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      VALUES_FILE: ${{ inputs.values_file }}
+      NAMESPACE: ${{ inputs.namespace }}
+      RELEASE_NAME: ${{ inputs.release_name }}
+      ONE_XMLRPC: ${{ secrets.STAGING_ONE_XMLRPC }}
+      ONE_AUTH: ${{ secrets.STAGING_ONE_AUTH }}
+      CEPHFS_ADMIN_ID: ${{ secrets.STAGING_CEPHFS_ADMIN_ID }}
+      CEPHFS_ADMIN_KEY: ${{ secrets.STAGING_CEPHFS_ADMIN_KEY }}
+      CEPHFS_NODE_USER_ID: ${{ secrets.STAGING_CEPHFS_NODE_USER_ID }}
+      CEPHFS_NODE_USER_KEY: ${{ secrets.STAGING_CEPHFS_NODE_USER_KEY }}
+      CSI_IMAGE_REPOSITORY: ghcr.io/sparkaiur/opennebula-csi
+      CSI_IMAGE_TAG: staging-${{ github.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push staging image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          tags: ${{ env.CSI_IMAGE_REPOSITORY }}:${{ env.CSI_IMAGE_TAG }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Configure kubeconfig
+        env:
+          KUBECONFIG_B64: ${{ secrets.STAGING_KUBECONFIG_B64 }}
+        run: |
+          test -n "${KUBECONFIG_B64}"
+          echo "${KUBECONFIG_B64}" | base64 -d > "${RUNNER_TEMP}/kubeconfig"
+          echo "KUBECONFIG=${RUNNER_TEMP}/kubeconfig" >> "${GITHUB_ENV}"
+
+      - name: Validate CephFS staging deployment
+        run: bash hack/validate-staging-cephfs.sh

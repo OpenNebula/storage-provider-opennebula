@@ -1,0 +1,51 @@
+namespaceOverride: "kube-system"
+oneApiEndpoint: "https://example.com/RPC2"
+
+credentials:
+  existingSecret:
+    name: opennebula-csi-auth
+    key: credentials
+
+image:
+  repository: "ghcr.io/sparkaiur/opennebula-csi"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+driver:
+  defaultDatastores:
+    - "one-csi"
+  datastoreSelectionPolicy: "least-used"
+  allowedDatastoreTypes:
+    - "ceph"
+  env:
+    - name: GODEBUG
+      value: "madvdontneed=1"
+
+controller:
+  replicaCount: 1
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+node:
+  tolerations:
+    - operator: Exists
+
+storageClasses:
+  - name: opennebula-ceph-rbd
+    annotations:
+      storageclass.kubernetes.io/is-default-class: "false"
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: Immediate
+    mountOptions: []
+    parameters:
+      datastoreIDs: "one-csi"
+      datastoreSelectionPolicy: "least-used"
+      fsType: "ext4"
+      devPrefix: "vd"
+      cache: "none"
+      driver: "raw"

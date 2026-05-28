@@ -74,19 +74,34 @@ func (is *IdentityServer) GetPluginCapabilities(ctx context.Context, req *csi.Ge
 		return nil, status.Error(codes.Unavailable, "driver version not set")
 	}
 
-	//TODO: Add plugin capabilities: https://kubernetes-csi.github.io/docs/developing.html#capabilities
-	// VOLUME_ACCESSIBILITY_CONSTRAINTS
-	return &csi.GetPluginCapabilitiesResponse{
-		Capabilities: []*csi.PluginCapability{
-			{
-				Type: &csi.PluginCapability_Service_{
-					Service: &csi.PluginCapability_Service{
-						Type: csi.PluginCapability_Service_CONTROLLER_SERVICE,
-					},
+	capabilities := []*csi.PluginCapability{
+		{
+			Type: &csi.PluginCapability_Service_{
+				Service: &csi.PluginCapability_Service{
+					Type: csi.PluginCapability_Service_CONTROLLER_SERVICE,
 				},
 			},
 		},
-	}, nil
+		{
+			Type: &csi.PluginCapability_VolumeExpansion_{
+				VolumeExpansion: &csi.PluginCapability_VolumeExpansion{
+					Type: csi.PluginCapability_VolumeExpansion_ONLINE,
+				},
+			},
+		},
+	}
+
+	if is.Driver.featureGates.TopologyAccessibility {
+		capabilities = append(capabilities, &csi.PluginCapability{
+			Type: &csi.PluginCapability_Service_{
+				Service: &csi.PluginCapability_Service{
+					Type: csi.PluginCapability_Service_VOLUME_ACCESSIBILITY_CONSTRAINTS,
+				},
+			},
+		})
+	}
+
+	return &csi.GetPluginCapabilitiesResponse{Capabilities: capabilities}, nil
 }
 
 // https://github.com/container-storage-interface/spec/blob/98819c45a37a67e0cd466bd02b813faf91af4e45/spec.md#probe

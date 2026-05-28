@@ -1,0 +1,23 @@
+oneApiEndpoint: "http://opennebula.example.internal:2633/RPC2"
+
+credentials:
+  inlineAuth: "oneadmin:changeme"
+
+driver:
+  defaultDatastores:
+    - "100"
+  datastoreSelectionPolicy: "least-used"
+  allowedDatastoreTypes:
+    - "local"
+
+storageClasses:
+  - name: opennebula-local-single
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    mountOptions: []
+    parameters:
+      datastoreIDs: "100"
+      datastoreSelectionPolicy: "least-used"
+      fsType: "ext4"
+      devPrefix: "vd"

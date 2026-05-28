@@ -19,16 +19,26 @@ endif
 GOLANGCI_LINT_VERSION		?= 2.2.1
 HELM_VERSION				?= 3.17.3
 
+SYSTEM_HELM := $(shell command -v helm 2>/dev/null)
 GOLANGCI_LINT	:= $(SELF)/bin/golangci-lint
-HELM			:= $(SELF)/bin/helm
+ifeq ($(SYSTEM_HELM),)
+HELM := $(SELF)/bin/helm
+else
+HELM := $(SYSTEM_HELM)
+endif
 
 CLOSEST_TAG ?= $(shell git -C $(SELF) describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+BUILD_VERSION ?= $(shell git -C $(SELF) describe --tags --always --dirty 2>/dev/null || echo dev)
+GIT_COMMIT ?= $(shell git -C $(SELF) rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GO_LDFLAGS := -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverVersion=$(BUILD_VERSION) -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverCommit=$(GIT_COMMIT) -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverBuildDate=$(BUILD_DATE)
 
 # Local registry and tag used for building/pushing image targets
 LOCAL_TAG ?= latest
 LOCAL_REGISTRY ?= localhost:5005
 # Registry to use for building/pushing image targets
-REMOTE_REGISTRY ?= ghcr.io/opennebula
+REMOTE_REGISTRY ?= ghcr.io/sparkaiur
+DOCKERHUB_REGISTRY ?= docker.io/nudevco
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
@@ -42,7 +52,7 @@ BUILD_BINS := opennebula-csi
 IMAGE_NAMES := opennebula-csi
 
 -include .env
-export
+export LOCAL_REGISTRY LOCAL_TAG ONE_XMLRPC ONE_AUTH DEBUG_PORT WORKLOAD_CLUSTER_NAME WORKLOAD_CLUSTER_KUBECONFIG WORKER_NODES
 
 include Makefile.dev.mk
 
@@ -81,12 +91,16 @@ test:
 build: fmt vet $(addprefix build-,$(BUILD_BINS))
 
 build-%:
-	go build -o $(SELF)/bin/$* ./cmd/$*/main.go
+	go build -ldflags "$(GO_LDFLAGS)" -o $(SELF)/bin/$* ./cmd/$*/main.go
 
 docker-build: $(addprefix docker-build-,$(IMAGE_NAMES))
 
 docker-build-%:
-	$(CONTAINER_TOOL) build -t $(LOCAL_REGISTRY)/$*:$(LOCAL_TAG) .
+	$(CONTAINER_TOOL) build \
+		--build-arg VERSION=$(BUILD_VERSION) \
+		--build-arg COMMIT=$(GIT_COMMIT) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		-t $(LOCAL_REGISTRY)/$*:$(LOCAL_TAG) .
 
 docker-push: $(addprefix docker-push-,$(IMAGE_NAMES))
 
@@ -105,7 +119,15 @@ docker-release: $(addprefix docker-release-,$(IMAGE_NAMES))
 docker-release-%:
 	-$(CONTAINER_TOOL) buildx create --name $*-builder
 	$(CONTAINER_TOOL) buildx use $*-builder
-	$(CONTAINER_TOOL) buildx build --push --platform=$(_PLATFORMS) -t $(REMOTE_REGISTRY)/$*:$(CLOSEST_TAG) -t $(REMOTE_REGISTRY)/$*:latest -f Dockerfile .
+	$(CONTAINER_TOOL) buildx build --push --platform=$(_PLATFORMS) \
+		--build-arg VERSION=$(CLOSEST_TAG) \
+		--build-arg COMMIT=$(GIT_COMMIT) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		-t $(REMOTE_REGISTRY)/$*:$(CLOSEST_TAG) \
+		-t $(REMOTE_REGISTRY)/$*:latest \
+		-t $(DOCKERHUB_REGISTRY)/$*:$(CLOSEST_TAG) \
+		-t $(DOCKERHUB_REGISTRY)/$*:latest \
+		-f Dockerfile .
 	-$(CONTAINER_TOOL) buildx rm $*-builder
 
 # Helm
@@ -125,7 +147,7 @@ helm-deploy: $(HELM) # Deploy OpenNebula CSI plugin using Helm to the cluster sp
 		--set image.tag=$(CLOSEST_TAG) \
 		--set image.pullPolicy="IfNotPresent" \
 		--set oneApiEndpoint=$(ONE_XMLRPC) \
-		--set oneAuth=$(ONE_AUTH)
+		--set credentials.inlineAuth=$(ONE_AUTH)
 
 helm-undeploy: $(HELM) # Undeploy OpenNebula CSI plugin from the cluster specified in ~/.kube/config.
 	$(HELM) uninstall opennebula-csi
@@ -136,7 +158,7 @@ manifests: $(HELM)
 		--set image.tag=$(CLOSEST_TAG) \
 		--set image.pullPolicy="IfNotPresent" \
 		--set oneApiEndpoint=$(ONE_XMLRPC) \
-		--set oneAuth=$(ONE_AUTH) \
+		--set credentials.inlineAuth=$(ONE_AUTH) \
 		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/release/opennebula-csi.yaml
 
 manifests-dev: $(HELM)
@@ -145,7 +167,7 @@ manifests-dev: $(HELM)
 		--set image.tag=$(LOCAL_TAG) \
 		--set image.pullPolicy="Always" \
 		--set oneApiEndpoint=$(ONE_XMLRPC) \
-		--set oneAuth=$(ONE_AUTH) \
+		--set credentials.inlineAuth=$(ONE_AUTH) \
 		| install -m u=rw,go=r -D /dev/fd/0 $(DEPLOY_DIR)/dev/opennebula-csi.yaml
 
 # Dependencies
@@ -156,6 +178,7 @@ golangci-lint: $(GOLANGCI_LINT)
 $(GOLANGCI_LINT):
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,v$(GOLANGCI_LINT_VERSION))
 
+ifeq ($(SYSTEM_HELM),)
 helm: $(HELM)
 $(HELM):
 	@[ -f $@-v$(HELM_VERSION) ] || \
@@ -163,6 +186,10 @@ $(HELM):
 	| tar -xzO -f- linux-amd64/helm \
 	| install -m u=rwx,go= -o $(USER) -D /dev/fd/0 $@-v$(HELM_VERSION); }
 	@ln -sf $@-v$(HELM_VERSION) $@
+else
+helm:
+	@printf 'Using system helm at %s\n' "$(HELM)"
+endif
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary

@@ -1,0 +1,77 @@
+{{- $lastNodePreference := (get .Values.driver "lastNodePreference") | default dict -}}
+{{- $lastNodePreferenceWebhook := (get $lastNodePreference "webhook") | default dict -}}
+{{- $enabled := and ((get $lastNodePreference "enabled") | default true) ((get $lastNodePreferenceWebhook "enabled") | default true) -}}
+{{- if $enabled -}}
+{{- $namespace := include "opennebula-csi.namespace" . -}}
+{{- $serviceName := include "opennebula-csi.lastNodeWebhookServiceName" . -}}
+{{- $secretName := include "opennebula-csi.lastNodeWebhookSecretName" . -}}
+{{- $failurePolicy := (get $lastNodePreferenceWebhook "failurePolicy") | default "Ignore" -}}
+{{- $port := (get $lastNodePreferenceWebhook "port") | default 9443 -}}
+{{- $existing := lookup "v1" "Secret" $namespace $secretName -}}
+{{- $caCert := "" -}}
+{{- $tlsCert := "" -}}
+{{- $tlsKey := "" -}}
+{{- if and $existing $existing.data -}}
+  {{- $caCert = index $existing.data "ca.crt" -}}
+  {{- $tlsCert = index $existing.data "tls.crt" -}}
+  {{- $tlsKey = index $existing.data "tls.key" -}}
+{{- else -}}
+  {{- $ca := genCA (printf "%s-ca" $serviceName) 3650 -}}
+  {{- $cert := genSignedCert $serviceName nil (list $serviceName (printf "%s.%s" $serviceName $namespace) (printf "%s.%s.svc" $serviceName $namespace)) 3650 $ca -}}
+  {{- $caCert = b64enc $ca.Cert -}}
+  {{- $tlsCert = b64enc $cert.Cert -}}
+  {{- $tlsKey = b64enc $cert.Key -}}
+{{- end -}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  namespace: {{ $namespace }}
+type: kubernetes.io/tls
+data:
+  ca.crt: {{ $caCert }}
+  tls.crt: {{ $tlsCert }}
+  tls.key: {{ $tlsKey }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $serviceName }}
+  namespace: {{ $namespace }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: controller
+  ports:
+    - name: https
+      port: 443
+      targetPort: {{ $port }}
+      protocol: TCP
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ printf "%s-last-node-preference" (include "opennebula-csi.fullname" .) | trunc 63 | trimSuffix "-" }}
+webhooks:
+  - name: last-node-preference.storage-provider.opennebula.sparkaiur.io
+    admissionReviewVersions:
+      - v1
+    sideEffects: None
+    failurePolicy: {{ $failurePolicy }}
+    matchPolicy: Equivalent
+    clientConfig:
+      service:
+        namespace: {{ $namespace }}
+        name: {{ $serviceName }}
+        path: {{ "/mutate-v1-pod-last-node-preference" | quote }}
+        port: 443
+      caBundle: {{ $caCert }}
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        scope: "Namespaced"
+{{- end }}

@@ -1,0 +1,86 @@
+{{- if and .Values.metrics.enabled .Values.metrics.controller.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ printf "%s-controller-metrics" (include "opennebula-csi.fullname" .) }}
+  namespace: {{ default (include "opennebula-csi.namespace" .) .Values.metrics.controller.serviceMonitor.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: controller
+    {{- with .Values.metrics.controller.serviceMonitor.labels }}
+{{ toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.metrics.controller.serviceMonitor.annotations }}
+  annotations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ include "opennebula-csi.namespace" . }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: controller
+  endpoints:
+    {{- if .Values.metrics.driver.enabled }}
+    - port: driver-metrics
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.controller.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.controller.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    - port: prov-metrics
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.controller.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.controller.serviceMonitor.scrapeTimeout }}
+    - port: att-metrics
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.controller.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.controller.serviceMonitor.scrapeTimeout }}
+    - port: res-metrics
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.controller.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.controller.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- if and .Values.metrics.enabled .Values.metrics.node.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ printf "%s-node-metrics" (include "opennebula-csi.fullname" .) }}
+  namespace: {{ default (include "opennebula-csi.namespace" .) .Values.metrics.node.serviceMonitor.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: node
+    {{- with .Values.metrics.node.serviceMonitor.labels }}
+{{ toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.metrics.node.serviceMonitor.annotations }}
+  annotations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ include "opennebula-csi.namespace" . }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: node
+  endpoints:
+    {{- if .Values.metrics.driver.enabled }}
+    - port: driver-metrics
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.node.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.node.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    - port: reg-metrics
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.node.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.node.serviceMonitor.scrapeTimeout }}
+{{- end }}

@@ -16,12 +16,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Validate chart/image version alignment
+        run: bash hack/validate-chart-version-alignment.sh "$GITHUB_REF_NAME"
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: "${{ github.actor }}"
           password: "${{ secrets.GITHUB_TOKEN }}"
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: "${{ secrets.DOCKERHUB_USERNAME }}"
+          password: "${{ secrets.DOCKERHUB_TOKEN }}"
 
       - name: Build and push images
         run: make docker-release-opennebula-csi "CLOSEST_TAG:=$GITHUB_REF_NAME" BUILDX_NO_DEFAULT_ATTESTATIONS=1
@@ -43,7 +56,7 @@ jobs:
       - name: Re-index charts
         working-directory: ./gh-pages/charts/
         run: |
-          ../../bin/helm repo index ./ --url https://opennebula.github.io/storage-provider-opennebula/charts/
+          helm repo index ./ --url https://sparkaiur.github.io/storage-provider-opennebula/charts/
 
       - name: Push gh-pages
         working-directory: ./gh-pages/charts/

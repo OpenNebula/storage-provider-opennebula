@@ -213,8 +213,15 @@ var _ = SynchronizedBeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred(), "Failed to wait for workload cluster to be ready")
 
 	chartValues = map[string]interface{}{
-		"oneAuth":        oneAuth,
 		"oneApiEndpoint": oneXMLRPC,
+		"credentials": map[string]interface{}{
+			"inlineAuth": oneAuth,
+		},
+		"driver": map[string]interface{}{
+			"defaultDatastores":        []string{"default"},
+			"datastoreSelectionPolicy": "least-used",
+			"allowedDatastoreTypes":    []string{"local"},
+		},
 		"image": map[string]interface{}{
 			"repository": fmt.Sprintf("%s:%s/%s", localRegistry, localRegistryPort, driverName),
 			"tag":        driverImageTag,
@@ -760,6 +767,10 @@ func applyManifestFromURL(kubeconfig, url string) error {
 }
 
 func TestE2E(t *testing.T) {
+	if os.Getenv("RUN_OPENNEBULA_E2E_TESTS") != "1" {
+		t.Skip("set RUN_OPENNEBULA_E2E_TESTS=1 to run end-to-end tests")
+	}
+
 	RegisterFailHandler(Fail)
 	ctrl.SetLogger(GinkgoLogr)
 	RunSpecs(t, "csi-e2e")

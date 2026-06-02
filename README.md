@@ -30,7 +30,7 @@ Detailed installation, StorageClass examples, backend-specific configuration, va
 * [Wiki home](https://github.com/OpenNebula/storage-provider-opennebula/wiki)
     * [Installation and Helm deployment](https://github.com/OpenNebula/storage-provider-opennebula/wiki/csi_install)
     * [Storage backends](https://github.com/OpenNebula/storage-provider-opennebula/wiki/csi_storage_backends)
-    * [Local RWO expansion](https://github.com/OpenNebula/storage-provider-opennebula/wiki/csi_local_rwo_expansion)
+    * [Local RWO](https://github.com/OpenNebula/storage-provider-opennebula/wiki/csi_local_rwo)
     * [Ceph RBD RWO](https://github.com/OpenNebula/storage-provider-opennebula/wiki/csi_ceph_rbd_rwo)
     * [CephFS RWMany](https://github.com/OpenNebula/storage-provider-opennebula/wiki/csi_cephfs_rwmany)
     * [Validation matrix](https://github.com/OpenNebula/storage-provider-opennebula/wiki/csi_validation)

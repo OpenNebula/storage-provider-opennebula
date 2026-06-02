@@ -27,7 +27,7 @@ Chart repo:
 - local, Ceph RBD, and SparkAI CephFS datastore backends
 - `ReadWriteOnce`, `ReadOnlyMany`, and CephFS-backed filesystem volumes for `ReadWriteOnce`, `ReadOnlyMany`, and `ReadWriteMany`
 - CSI resize, metrics, preflight checks, snapshots, and clone workflows
-- stable detached-disk expansion and dynamic CephFS expansion
+- attached persistent-disk expansion and dynamic CephFS expansion
 - gated alpha features for CephFS snapshot/clone, CephFS self-healing, and topology accessibility
 
 ## Prerequisites
@@ -216,8 +216,8 @@ For local-backed StorageClasses:
 - the controller uses size-aware hotplug timeouts, allows only one active VM hotplug per node, and returns retryable `Aborted` when another same-node hotplug is already in progress
 - node-side device discovery uses the same per-volume timeout budget that the controller computed during publish
 - if a VM stays non-ready through the full timeout, the driver puts that VM into a temporary hotplug cooldown and rejects further hotplug work with retryable `Unavailable`
-- recreating MinIO tenants with local-backed PVCs should still be treated as node-sticky; use Ceph RBD or CephFS if the workload must remain portable across nodes
-- use Ceph RBD for portable attached-disk RWO and CephFS for portable filesystem RWO or RWX
+- recreating MinIO tenants with local-backed PVCs should still be treated as node-sticky; use Ceph RBD or CephFS when workloads need storage backed by shared or remote infrastructure
+- Ceph RBD-backed RWO volumes can be reattached across nodes through the CSI/OpenNebula detach and attach flow, subject to attachment state, node health, controller reconciliation, and backend availability; use CephFS for shared filesystem RWO or RWX
 
 ### Restart-optimized local StatefulSets
 
@@ -425,7 +425,7 @@ At least one datastore source must be configured through `driver.defaultDatastor
 | Parameter | Description | Default | Required |
 | --- | --- | --- | --- |
 | `featureGates.compatibilityAwareSelection` | Enable compatibility-aware filtering for datastores such as `COMPATIBLE_SYS_DS`. | `true` | No |
-| `featureGates.detachedDiskExpansion` | Enable detached persistent-disk expansion through image-level resize. Stable and enabled by default in `v0.4.3`. | `true` | No |
+| `featureGates.detachedDiskExpansion` | Legacy compatibility gate passed to controller expansion. Detached persistent-disk expansion is rejected because image-level resize does not reliably update canonical image size; attach the volume before expanding it. | `true` | No |
 | `featureGates.cephfsExpansion` | Enable CephFS dynamic subvolume expansion. Stable and enabled by default in `v0.4.3`. | `true` | No |
 | `featureGates.cephfsSnapshots` | Enable CephFS snapshot RPC flows. | `false` | No |
 | `featureGates.cephfsClones` | Enable CephFS PVC clone and snapshot restore flows. | `false` | No |
@@ -636,7 +636,7 @@ Common `storageClasses[].parameters` used by this driver:
 | StorageClass-managed provisioning | `storageClasses[].name` plus `storageClasses[].parameters.datastoreIDs` or `driver.defaultDatastores` |
 | CephFS filesystem provisioning | CephFS datastore IDs, StorageClass secret refs, Kubernetes Secrets with `adminID/adminKey` and `userID/userKey` |
 | Topology accessibility alpha | `featureGates.topologyAccessibility=true` plus node labels `topology.opennebula.sparkaiur.io/system-ds=<id>` |
-| Detached disk expansion | Enabled by default |
+| Detached disk expansion | Not supported; attach the persistent disk before expanding it |
 | CephFS expansion | Enabled by default |
 | CephFS snapshots alpha | `featureGates.cephfsSnapshots=true` |
 | CephFS clones alpha | `featureGates.cephfsClones=true` |

@@ -216,8 +216,8 @@ For local-backed StorageClasses:
 - the controller uses size-aware hotplug timeouts, allows only one active VM hotplug per node, and returns retryable `Aborted` when another same-node hotplug is already in progress
 - node-side device discovery uses the same per-volume timeout budget that the controller computed during publish
 - if a VM stays non-ready through the full timeout, the driver puts that VM into a temporary hotplug cooldown and rejects further hotplug work with retryable `Unavailable`
-- recreating MinIO tenants with local-backed PVCs should still be treated as node-sticky; use Ceph RBD or CephFS when workloads need storage backed by shared or remote infrastructure
-- Ceph RBD-backed RWO volumes can be reattached across nodes through the CSI/OpenNebula detach and attach flow, subject to attachment state, node health, controller reconciliation, and backend availability; use CephFS for shared filesystem RWO or RWX
+- recreating MinIO tenants with local-backed PVCs should still be treated as node-sticky. Use Ceph RBD or CephFS when workloads need storage backed by shared or remote infrastructure
+- Ceph RBD-backed RWO volumes can be reattached across nodes through the CSI/OpenNebula detach and attach flow, subject to attachment state, node health, controller reconciliation, and backend availability. Use CephFS for shared filesystem RWO or RWX
 
 ### Restart-optimized local StatefulSets
 
@@ -390,7 +390,7 @@ One of `credentials.existingSecret.name` or `credentials.inlineAuth` must be set
 | `driver.metadataDriftQuarantine.ttlSeconds` | Active quarantine duration after the threshold is reached. | `1800` | No |
 | `driver.hostArtifactQuarantine.enabled` | Enable read-only quarantine when local `fs_lvm_ssh` attach failures indicate a stale host-side LV such as `lv-one-<vm>-<disk>`. | `true` | No |
 | `driver.hostArtifactQuarantine.failureThreshold` | Matching host-artifact failures required before the VM/disk slot quarantine is active. | `1` | No |
-| `driver.hostArtifactQuarantine.ttlSeconds` | Active host-artifact quarantine duration; after external repair, operators can also clear the matching `opennebula-csi-host-artifact-state` key to retry immediately. | `3600` | No |
+| `driver.hostArtifactQuarantine.ttlSeconds` | Active host-artifact quarantine duration. After external repair, operators can also clear the matching `opennebula-csi-host-artifact-state` key to retry immediately. | `3600` | No |
 | `driver.localDeviceRecovery.enabled` | Enable controller-driven same-node detach/reattach recovery after node-side local device discovery repeatedly fails. | `true` | No |
 | `driver.localDeviceRecovery.minAttempts` | Missing-device reports required from a node before recovery is eligible. | `3` | No |
 | `driver.localDeviceRecovery.minAgeSeconds` | Minimum age of the first missing-device report before recovery is eligible. | `60` | No |
@@ -425,7 +425,7 @@ At least one datastore source must be configured through `driver.defaultDatastor
 | Parameter | Description | Default | Required |
 | --- | --- | --- | --- |
 | `featureGates.compatibilityAwareSelection` | Enable compatibility-aware filtering for datastores such as `COMPATIBLE_SYS_DS`. | `true` | No |
-| `featureGates.detachedDiskExpansion` | Legacy compatibility gate passed to controller expansion. Detached persistent-disk expansion is rejected because image-level resize does not reliably update canonical image size; attach the volume before expanding it. | `true` | No |
+| `featureGates.detachedDiskExpansion` | Legacy compatibility gate passed to controller expansion. Detached persistent-disk expansion is rejected because image-level resize does not reliably update canonical image size. Attach the volume before expanding it. | `true` | No |
 | `featureGates.cephfsExpansion` | Enable CephFS dynamic subvolume expansion. Stable and enabled by default in `v0.4.3`. | `true` | No |
 | `featureGates.cephfsSnapshots` | Enable CephFS snapshot RPC flows. | `false` | No |
 | `featureGates.cephfsClones` | Enable CephFS PVC clone and snapshot restore flows. | `false` | No |
@@ -636,7 +636,7 @@ Common `storageClasses[].parameters` used by this driver:
 | StorageClass-managed provisioning | `storageClasses[].name` plus `storageClasses[].parameters.datastoreIDs` or `driver.defaultDatastores` |
 | CephFS filesystem provisioning | CephFS datastore IDs, StorageClass secret refs, Kubernetes Secrets with `adminID/adminKey` and `userID/userKey` |
 | Topology accessibility alpha | `featureGates.topologyAccessibility=true` plus node labels `topology.opennebula.sparkaiur.io/system-ds=<id>` |
-| Detached disk expansion | Not supported; attach the persistent disk before expanding it |
+| Detached disk expansion | Not supported. Attach the persistent disk before expanding it |
 | CephFS expansion | Enabled by default |
 | CephFS snapshots alpha | `featureGates.cephfsSnapshots=true` |
 | CephFS clones alpha | `featureGates.cephfsClones=true` |

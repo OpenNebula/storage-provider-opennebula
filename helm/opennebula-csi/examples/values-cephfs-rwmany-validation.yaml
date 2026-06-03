@@ -1,0 +1,66 @@
+# Example values for validating CephFS FILE datastore RWMany volumes.
+# This is a ready-to-adapt validation profile, not a production default.
+#
+# Replace datastore ID 105 with the CephFS FILE datastore ID in your environment.
+# Replace subvolume group csi if your CephFS setup uses a different group.
+# The cephfs-provisioner and cephfs-node-stage Secrets must exist before using
+# this profile. cephfsMounter: "fuse" was used in validation.
+# Do not pass SPARKAI_CSI_CEPHFS_MOUNT_OPTIONS="defaults" to ceph-fuse.
+# CephFS controller-side expansion was validated. Kubernetes may emit
+# NodeResizeError for node-side expansion while PVC/PV capacity and mounted
+# clients still observe the expanded size.
+
+oneApiEndpoint: "http://<OPENNEBULA_XMLRPC_HOST>:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: "opennebula-csi-auth"
+    key: "credentials"
+  inlineAuth: ""
+
+image:
+  repository: "ghcr.io/opennebula/opennebula-csi"
+  tag: "<IMAGE_TAG>"
+  # Always is useful while validating freshly built images. Change this for
+  # production if you pin immutable image tags.
+  pullPolicy: "Always"
+
+driver:
+  logLevel: 5
+  defaultDatastores:
+    - "105"
+  datastoreSelectionPolicy: "ordered"
+  allowedDatastoreTypes:
+    - "cephfs"
+
+featureGates:
+  compatibilityAwareSelection: true
+  detachedDiskExpansion: true
+  cephfsExpansion: true
+  cephfsSnapshots: false
+  cephfsClones: false
+  cephfsSelfHealing: false
+  cephfsPersistentRecovery: true
+  cephfsKernelMounts: false
+  localRWOStaleMountRecovery: false
+  topologyAccessibility: false
+
+snapshotter:
+  enabled: false
+
+storageClasses:
+  - name: opennebula-cephfs-rwm
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: Immediate
+    parameters:
+      datastoreIDs: "105"
+      datastoreSelectionPolicy: ordered
+      sharedFilesystemSubvolumeGroup: "csi"
+      cephfsMounter: "fuse"
+      csi.storage.k8s.io/provisioner-secret-name: cephfs-provisioner
+      csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+      csi.storage.k8s.io/controller-expand-secret-name: cephfs-provisioner
+      csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
+      csi.storage.k8s.io/node-stage-secret-name: cephfs-node-stage
+      csi.storage.k8s.io/node-stage-secret-namespace: kube-system

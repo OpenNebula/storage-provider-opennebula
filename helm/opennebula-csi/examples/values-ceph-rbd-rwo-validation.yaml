@@ -1,0 +1,64 @@
+# Example values for validating Ceph RBD-backed OpenNebula IMAGE datastore RWO volumes.
+# This is a ready-to-adapt validation profile, not a production default.
+#
+# Replace datastore ID 1 with the Ceph IMAGE datastore ID in your environment.
+# Do not use the Ceph SYSTEM datastore ID in the StorageClass. Cross-node use
+# happens through the CSI/OpenNebula detach and attach flow, and depends on
+# attachment state, node health, controller reconciliation, and backend availability.
+
+oneApiEndpoint: "http://<OPENNEBULA_XMLRPC_HOST>:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: "opennebula-csi-auth"
+    key: "credentials"
+  inlineAuth: ""
+
+image:
+  repository: "ghcr.io/opennebula/opennebula-csi"
+  tag: "<IMAGE_TAG>"
+  # Always is useful while validating freshly built images. Change this for
+  # production if you pin immutable image tags.
+  pullPolicy: "Always"
+
+driver:
+  logLevel: 5
+  defaultDatastores:
+    - "1"
+  datastoreSelectionPolicy: "ordered"
+  allowedDatastoreTypes:
+    - "ceph"
+
+featureGates:
+  compatibilityAwareSelection: true
+  detachedDiskExpansion: true
+  cephfsExpansion: true
+  cephfsSnapshots: false
+  cephfsClones: false
+  cephfsSelfHealing: false
+  cephfsPersistentRecovery: true
+  cephfsKernelMounts: false
+  localRWOStaleMountRecovery: false
+  topologyAccessibility: false
+
+snapshotter:
+  enabled: false
+
+storageClasses:
+  - name: opennebula-ceph-rwo-ext4
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    parameters:
+      datastoreIDs: "1"
+      datastoreSelectionPolicy: ordered
+      fsType: ext4
+
+  - name: opennebula-ceph-rwo-xfs
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    parameters:
+      datastoreIDs: "1"
+      datastoreSelectionPolicy: ordered
+      fsType: xfs

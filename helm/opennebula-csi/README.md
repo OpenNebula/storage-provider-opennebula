@@ -667,6 +667,16 @@ helm upgrade --install opennebula-csi ./helm/opennebula-csi \
   --values examples/omni-values.yaml
 ```
 
+## Example Values Profiles
+
+Ready-to-adapt validation profiles are available for the validated storage scenarios:
+
+- [`examples/values-local-rwo-validation.yaml`](examples/values-local-rwo-validation.yaml): local `IMAGE` datastore RWO volumes with ext4 and XFS StorageClasses.
+- [`examples/values-ceph-rbd-rwo-validation.yaml`](examples/values-ceph-rbd-rwo-validation.yaml): Ceph RBD `IMAGE` datastore RWO volumes with ext4 and XFS StorageClasses.
+- [`examples/values-cephfs-rwmany-validation.yaml`](examples/values-cephfs-rwmany-validation.yaml): CephFS `FILE` datastore RWMany volumes with CephFS secret references.
+
+These profiles use placeholders for OpenNebula endpoints, credentials, image tags, and datastore IDs. Adapt them before use.
+
 ## Related Examples
 
 - `examples/helm-values-existing-secret.yaml`

@@ -9,7 +9,7 @@ The driver supports dynamic provisioning of Kubernetes PersistentVolumes, Helm-b
 ## Validated Storage Backends
 
 | Backend | Access mode | Validation status | Notes |
-|---|---:|---|---|
+|---|---|---|---|
 | Local `IMAGE` datastore | RWO | Validated | ext4/XFS expansion, detach/reattach, CSI requested-size metadata, stale `SIZE` recovery |
 | Ceph RBD `IMAGE` datastore | RWO | Validated | ext4/XFS expansion and detach/reattach. OpenNebula canonical `SIZE` updated to the expanded size |
 | CephFS `FILE` datastore | RWMany | Validated | Dynamic provisioning, shared mounts, expansion, pod churn, remount persistence, and cleanup |

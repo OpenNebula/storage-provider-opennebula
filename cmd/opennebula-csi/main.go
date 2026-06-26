@@ -24,9 +24,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver"
-	inventorycontroller "github.com/SparkAIUR/storage-provider-opennebula/pkg/inventory/controller"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver"
+	inventorycontroller "github.com/OpenNebula/storage-provider-opennebula/pkg/inventory/controller"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"

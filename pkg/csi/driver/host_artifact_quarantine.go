@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 )

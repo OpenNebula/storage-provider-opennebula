@@ -31,14 +31,13 @@ CLOSEST_TAG ?= $(shell git -C $(SELF) describe --tags --abbrev=0 2>/dev/null || 
 BUILD_VERSION ?= $(shell git -C $(SELF) describe --tags --always --dirty 2>/dev/null || echo dev)
 GIT_COMMIT ?= $(shell git -C $(SELF) rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-GO_LDFLAGS := -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverVersion=$(BUILD_VERSION) -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverCommit=$(GIT_COMMIT) -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverBuildDate=$(BUILD_DATE)
+GO_LDFLAGS := -X github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver.driverVersion=$(BUILD_VERSION) -X github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver.driverCommit=$(GIT_COMMIT) -X github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver.driverBuildDate=$(BUILD_DATE)
 
 # Local registry and tag used for building/pushing image targets
 LOCAL_TAG ?= latest
 LOCAL_REGISTRY ?= localhost:5005
 # Registry to use for building/pushing image targets
-REMOTE_REGISTRY ?= ghcr.io/sparkaiur
-DOCKERHUB_REGISTRY ?= docker.io/nudevco
+REMOTE_REGISTRY ?= ghcr.io/opennebula
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
@@ -125,8 +124,6 @@ docker-release-%:
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		-t $(REMOTE_REGISTRY)/$*:$(CLOSEST_TAG) \
 		-t $(REMOTE_REGISTRY)/$*:latest \
-		-t $(DOCKERHUB_REGISTRY)/$*:$(CLOSEST_TAG) \
-		-t $(DOCKERHUB_REGISTRY)/$*:latest \
 		-f Dockerfile .
 	-$(CONTAINER_TOOL) buildx rm $*-builder
 

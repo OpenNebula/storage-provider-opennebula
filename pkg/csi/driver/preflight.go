@@ -13,8 +13,8 @@ import (
 
 	"github.com/OpenNebula/one/src/oca/go/src/goca"
 	datastoreSchema "github.com/OpenNebula/one/src/oca/go/src/goca/schemas/datastore"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
 	utilexec "k8s.io/utils/exec"
 
 	storagev1 "k8s.io/api/storage/v1"

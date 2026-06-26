@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

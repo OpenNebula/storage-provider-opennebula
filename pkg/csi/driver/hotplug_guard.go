@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
 )
 
 type HotplugGuard struct {

@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
 )
 
 func TestOpenNebulaClientProbe(t *testing.T) {

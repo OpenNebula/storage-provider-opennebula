@@ -3,7 +3,7 @@ package cache
 import (
 	"testing"
 
-	inventoryv1alpha1 "github.com/SparkAIUR/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
+	inventoryv1alpha1 "github.com/OpenNebula/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
 )
 
 func TestFilterIdentifiersHonorsDisplayPhases(t *testing.T) {

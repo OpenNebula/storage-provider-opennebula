@@ -34,24 +34,24 @@ const (
 	paramPVCUID       = "csi.storage.k8s.io/pvc/uid"
 	paramPVName       = "csi.storage.k8s.io/pv/name"
 
-	annotationBackend           = "storage-provider.opennebula.sparkaiur.io/backend"
-	annotationDatastoreID       = "storage-provider.opennebula.sparkaiur.io/datastore-id"
-	annotationDatastoreName     = "storage-provider.opennebula.sparkaiur.io/datastore-name"
-	annotationSelectionPolicy   = "storage-provider.opennebula.sparkaiur.io/selection-policy"
-	annotationPlacementSummary  = "storage-provider.opennebula.sparkaiur.io/placement-summary"
-	annotationLastAttachedNode  = "storage-provider.opennebula.sparkaiur.io/last-attached-node"
-	annotationRestartOpt        = "storage-provider.opennebula.sparkaiur.io/restart-optimization"
-	annotationDetachGrace       = "storage-provider.opennebula.sparkaiur.io/detach-grace-seconds"
-	annotationLastNodePref      = "storage-provider.opennebula.sparkaiur.io/last-node-preference"
-	annotationPreferredLastNode = "storage-provider.opennebula.sparkaiur.io/preferred-last-node"
-	annotationLastNodeInjected  = "storage-provider.opennebula.sparkaiur.io/last-node-preference-injected"
+	annotationBackend           = "storage-provider.opennebula.io/backend"
+	annotationDatastoreID       = "storage-provider.opennebula.io/datastore-id"
+	annotationDatastoreName     = "storage-provider.opennebula.io/datastore-name"
+	annotationSelectionPolicy   = "storage-provider.opennebula.io/selection-policy"
+	annotationPlacementSummary  = "storage-provider.opennebula.io/placement-summary"
+	annotationLastAttachedNode  = "storage-provider.opennebula.io/last-attached-node"
+	annotationRestartOpt        = "storage-provider.opennebula.io/restart-optimization"
+	annotationDetachGrace       = "storage-provider.opennebula.io/detach-grace-seconds"
+	annotationLastNodePref      = "storage-provider.opennebula.io/last-node-preference"
+	annotationPreferredLastNode = "storage-provider.opennebula.io/preferred-last-node"
+	annotationLastNodeInjected  = "storage-provider.opennebula.io/last-node-preference-injected"
 
 	annotationLegacyLastAttachedNode = "csi.opennebula.io/last-attached-node"
 
 	restartOptimizationAnnotationValue = "sticky-local-restart-v1"
 	lastNodePreferenceDisabledValue    = "disabled"
 
-	topologySystemDSLabel = "topology.opennebula.sparkaiur.io/system-ds"
+	topologySystemDSLabel = "topology.opennebula.io/system-ds"
 )
 
 type PlacementReport struct {

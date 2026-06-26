@@ -1,9 +1,9 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: opennebuladatastorebenchmarkruns.storageprovider.opennebula.sparkaiur.io
+  name: opennebuladatastorebenchmarkruns.storageprovider.opennebula.io
 spec:
-  group: storageprovider.opennebula.sparkaiur.io
+  group: storageprovider.opennebula.io
   scope: Cluster
   names:
     kind: OpenNebulaDatastoreBenchmarkRun

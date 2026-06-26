@@ -156,10 +156,10 @@ func TestInspectStorageClassesWarnsOnMixedBackends(t *testing.T) {
 	summaries := runner.inspectStorageClasses(context.Background(), client, []datastoreSchema.Datastore{
 		newPreflightDatastore(100, "local-a", "fs", "local", "IMAGE", nil),
 		newPreflightDatastore(300, "cephfs-a", "fs", "shared", "FILE", map[string]string{
-			"SPARKAI_CSI_SHARE_BACKEND":          "cephfs",
-			"SPARKAI_CSI_CEPHFS_FS_NAME":         "cephfs-prod",
-			"SPARKAI_CSI_CEPHFS_ROOT_PATH":       "/kubernetes",
-			"SPARKAI_CSI_CEPHFS_SUBVOLUME_GROUP": "csi",
+			"OPENNEBULA_CSI_SHARE_BACKEND":          "cephfs",
+			"OPENNEBULA_CSI_CEPHFS_FS_NAME":         "cephfs-prod",
+			"OPENNEBULA_CSI_CEPHFS_ROOT_PATH":       "/kubernetes",
+			"OPENNEBULA_CSI_CEPHFS_SUBVOLUME_GROUP": "csi",
 			"CEPH_HOST":                          "mon1,mon2",
 		}),
 	})
@@ -191,10 +191,10 @@ func TestInspectStorageClassesUsesStandardCephFSSecretRefs(t *testing.T) {
 	runner := NewPreflightRunner(cfg, nil, PreflightOptions{})
 	summaries := runner.inspectStorageClasses(context.Background(), client, []datastoreSchema.Datastore{
 		newPreflightDatastore(300, "cephfs-a", "fs", "shared", "FILE", map[string]string{
-			"SPARKAI_CSI_SHARE_BACKEND":          "cephfs",
-			"SPARKAI_CSI_CEPHFS_FS_NAME":         "cephfs-prod",
-			"SPARKAI_CSI_CEPHFS_ROOT_PATH":       "/kubernetes",
-			"SPARKAI_CSI_CEPHFS_SUBVOLUME_GROUP": "csi",
+			"OPENNEBULA_CSI_SHARE_BACKEND":          "cephfs",
+			"OPENNEBULA_CSI_CEPHFS_FS_NAME":         "cephfs-prod",
+			"OPENNEBULA_CSI_CEPHFS_ROOT_PATH":       "/kubernetes",
+			"OPENNEBULA_CSI_CEPHFS_SUBVOLUME_GROUP": "csi",
 			"CEPH_HOST":                          "mon1,mon2",
 		}),
 	})
@@ -233,10 +233,10 @@ func TestInspectStorageClassesWarnsWhenKernelCephFSMounterIsUnsupported(t *testi
 	runner := NewPreflightRunner(cfg, nil, PreflightOptions{})
 	summaries := runner.inspectStorageClasses(context.Background(), client, []datastoreSchema.Datastore{
 		newPreflightDatastore(300, "cephfs-a", "fs", "shared", "FILE", map[string]string{
-			"SPARKAI_CSI_SHARE_BACKEND":          "cephfs",
-			"SPARKAI_CSI_CEPHFS_FS_NAME":         "cephfs-prod",
-			"SPARKAI_CSI_CEPHFS_ROOT_PATH":       "/kubernetes",
-			"SPARKAI_CSI_CEPHFS_SUBVOLUME_GROUP": "csi",
+			"OPENNEBULA_CSI_SHARE_BACKEND":          "cephfs",
+			"OPENNEBULA_CSI_CEPHFS_FS_NAME":         "cephfs-prod",
+			"OPENNEBULA_CSI_CEPHFS_ROOT_PATH":       "/kubernetes",
+			"OPENNEBULA_CSI_CEPHFS_SUBVOLUME_GROUP": "csi",
 			"CEPH_HOST":                          "mon1,mon2",
 		}),
 	})

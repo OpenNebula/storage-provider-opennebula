@@ -55,7 +55,7 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: {{ printf "%s-last-node-preference" (include "opennebula-csi.fullname" .) | trunc 63 | trimSuffix "-" }}
 webhooks:
-  - name: last-node-preference.storage-provider.opennebula.sparkaiur.io
+  - name: last-node-preference.storage-provider.opennebula.io
     admissionReviewVersions:
       - v1
     sideEffects: None

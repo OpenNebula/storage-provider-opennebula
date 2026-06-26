@@ -230,7 +230,7 @@ func NewDriverMetrics(version, commit string) *DriverMetrics {
 		}, []string{"backend", "datastore_id"}),
 		buildInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "opennebula_csi_build_info",
-			Help: "Build metadata for the SparkAI OpenNebula CSI driver.",
+			Help: "Build metadata for the OpenNebula CSI driver.",
 		}, []string{"version", "commit"}),
 	}
 

@@ -5,7 +5,7 @@
 # Replace subvolume group csi if your CephFS setup uses a different group.
 # The cephfs-provisioner and cephfs-node-stage Secrets must exist before using
 # this profile. cephfsMounter: "fuse" was used in validation.
-# Do not pass SPARKAI_CSI_CEPHFS_MOUNT_OPTIONS="defaults" to ceph-fuse.
+# Do not pass OPENNEBULA_CSI_CEPHFS_MOUNT_OPTIONS="defaults" to ceph-fuse.
 # CephFS controller-side expansion was validated. Kubernetes may emit
 # NodeResizeError for node-side expansion while PVC/PV capacity and mounted
 # clients still observe the expanded size.

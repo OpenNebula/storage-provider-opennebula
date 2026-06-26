@@ -1,6 +1,6 @@
 # opennebula-csi Helm Chart
 
-This chart deploys the SparkAI OpenNebula CSI driver into Kubernetes.
+This chart deploys the OpenNebula CSI driver into Kubernetes.
 
 It installs:
 
@@ -13,18 +13,18 @@ It installs:
 
 Images published for this chart:
 
-- `ghcr.io/sparkaiur/opennebula-csi:<tag>`
+- `ghcr.io/opennebula/opennebula-csi:<tag>`
 - `docker.io/nudevco/opennebula-csi:<tag>`
 
 Chart repo:
 
-- `https://sparkaiur.github.io/storage-provider-opennebula/charts/`
+- `https://opennebula.github.io/storage-provider-opennebula/charts/`
 
 ## What This Chart Supports
 
 - OpenNebula disk-backed PVC provisioning on explicitly configured datastores
 - datastore selection policies: `least-used`, `ordered`, `autopilot`
-- local, Ceph RBD, and SparkAI CephFS datastore backends
+- local, Ceph RBD, and OpenNebula CephFS datastore backends
 - `ReadWriteOnce`, `ReadOnlyMany`, and CephFS-backed filesystem volumes for `ReadWriteOnce`, `ReadOnlyMany`, and `ReadWriteMany`
 - CSI resize, metrics, preflight checks, snapshots, and clone workflows
 - attached persistent-disk expansion and dynamic CephFS expansion
@@ -37,7 +37,7 @@ Chart repo:
 - OpenNebula credentials available either in an existing Secret or inline through Helm values
 - OpenNebula datastores prepared for the backends you intend to use
 - for CephFS:
-  - a `FILE` datastore with the SparkAI CephFS attributes
+  - a `FILE` datastore with the OpenNebula CephFS attributes
   - Ceph monitors reachable from the pods
   - provisioner and node-stage secrets available in Kubernetes
 
@@ -46,7 +46,7 @@ Chart repo:
 Add the chart repo:
 
 ```bash
-helm repo add sparkai-opennebula https://sparkaiur.github.io/storage-provider-opennebula/charts/
+helm repo add opennebula https://opennebula.github.io/storage-provider-opennebula/charts/
 helm repo update
 ```
 
@@ -62,7 +62,7 @@ kubectl -n kube-system create secret generic opennebula-csi-auth \
 Install the chart:
 
 ```bash
-helm upgrade --install opennebula-csi sparkai-opennebula/opennebula-csi \
+helm upgrade --install opennebula-csi opennebula/opennebula-csi \
   --namespace kube-system \
   --create-namespace \
   --set credentials.existingSecret.name=opennebula-csi-auth
@@ -71,7 +71,7 @@ helm upgrade --install opennebula-csi sparkai-opennebula/opennebula-csi \
 ### Install with Inline Credentials
 
 ```bash
-helm upgrade --install opennebula-csi sparkai-opennebula/opennebula-csi \
+helm upgrade --install opennebula-csi opennebula/opennebula-csi \
   --namespace kube-system \
   --create-namespace \
   --set oneApiEndpoint=http://opennebula.example.com:2633/RPC2 \
@@ -205,7 +205,7 @@ featureGates:
 When `topologyAccessibility=true`, label nodes with:
 
 ```text
-topology.opennebula.sparkaiur.io/system-ds=<opennebula-system-datastore-id>
+topology.opennebula.io/system-ds=<opennebula-system-datastore-id>
 ```
 
 For local-backed StorageClasses:
@@ -252,8 +252,8 @@ spec:
     - metadata:
         name: data
         annotations:
-          storage-provider.opennebula.sparkaiur.io/restart-optimization: "sticky-local-restart-v1"
-          storage-provider.opennebula.sparkaiur.io/detach-grace-seconds: "90"
+          storage-provider.opennebula.io/restart-optimization: "sticky-local-restart-v1"
+          storage-provider.opennebula.io/detach-grace-seconds: "90"
       spec:
         accessModes:
           - ReadWriteOnce
@@ -303,7 +303,7 @@ To opt out of the soft last-node preference for a specific Pod or PVC, set:
 ```yaml
 metadata:
   annotations:
-    storage-provider.opennebula.sparkaiur.io/last-node-preference: "disabled"
+    storage-provider.opennebula.io/last-node-preference: "disabled"
 ```
 
 ## Values Reference
@@ -534,7 +534,7 @@ Benchmark defaults:
 
 ```bash
 kubectl apply -f - <<EOF
-apiVersion: storageprovider.opennebula.sparkaiur.io/v1alpha1
+apiVersion: storageprovider.opennebula.io/v1alpha1
 kind: OpenNebulaDatastoreBenchmarkRun
 metadata:
   name: auto
@@ -635,7 +635,7 @@ Common `storageClasses[].parameters` used by this driver:
 | Default provisioning without StorageClass overrides | `driver.defaultDatastores` |
 | StorageClass-managed provisioning | `storageClasses[].name` plus `storageClasses[].parameters.datastoreIDs` or `driver.defaultDatastores` |
 | CephFS filesystem provisioning | CephFS datastore IDs, StorageClass secret refs, Kubernetes Secrets with `adminID/adminKey` and `userID/userKey` |
-| Topology accessibility alpha | `featureGates.topologyAccessibility=true` plus node labels `topology.opennebula.sparkaiur.io/system-ds=<id>` |
+| Topology accessibility alpha | `featureGates.topologyAccessibility=true` plus node labels `topology.opennebula.io/system-ds=<id>` |
 | Detached disk expansion | Not supported. Attach the persistent disk before expanding it |
 | CephFS expansion | Enabled by default |
 | CephFS snapshots alpha | `featureGates.cephfsSnapshots=true` |

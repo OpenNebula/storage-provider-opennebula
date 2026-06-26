@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	GroupName = "storageprovider.opennebula.sparkaiur.io"
+	GroupName = "storageprovider.opennebula.io"
 	Version   = "v1alpha1"
 )
 

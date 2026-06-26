@@ -1,81 +1,220 @@
 ---
+{{- $controller := (get .Values "controller") | default dict -}}
+{{- $controllerLeaderElection := (get $controller "leaderElection") | default dict -}}
+{{- $controllerLogLevel := (get $controller "logLevel") | default 3 -}}
+{{- $controllerSidecarLogLevel := (get $controller "sidecarLogLevel") | default 3 -}}
+{{- $lastNodePreference := (get .Values.driver "lastNodePreference") | default dict -}}
+{{- $lastNodePreferenceWebhook := (get $lastNodePreference "webhook") | default dict -}}
+{{- $lastNodePreferenceWebhookEnabled := and ((get $lastNodePreference "enabled") | default true) ((get $lastNodePreferenceWebhook "enabled") | default true) -}}
+{{- $lastNodePreferenceWebhookPort := (get $lastNodePreferenceWebhook "port") | default 9443 -}}
+{{- $leaderElectionEnabled := (get $controllerLeaderElection "enabled") | default true -}}
+{{- $leaderElectionLeaseName := (get $controllerLeaderElection "leaseName") | default "opennebula-csi-controller" -}}
+{{- $leaderElectionLeaseNamespace := (get $controllerLeaderElection "leaseNamespace") | default "" -}}
+{{- if eq (trim (printf "%v" $leaderElectionLeaseNamespace)) "" -}}
+{{- $leaderElectionLeaseNamespace = include "opennebula-csi.namespace" . -}}
+{{- end }}
+{{- $leaderElectionLeaseDuration := (get $controllerLeaderElection "leaseDurationSeconds") | default 45 -}}
+{{- $leaderElectionRenewDeadline := (get $controllerLeaderElection "renewDeadlineSeconds") | default 30 -}}
+{{ $leaderElectionRetryPeriod := (get $controllerLeaderElection "retryPeriodSeconds") | default 10 }}
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
-  name: opennebula-csi-controller
-  namespace: kube-system
+  name: {{ printf "%s-controller" (include "opennebula-csi.fullname" .) }}
+  namespace: {{ include "opennebula-csi.namespace" . }}
 spec:
-  serviceName: "opennebula-csi"
+  serviceName: {{ include "opennebula-csi.fullname" . | quote }}
   selector:
     matchLabels:
-      app: opennebula-csi-controller
-  replicas: 1
+      app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: controller
+  replicas: {{ .Values.controller.replicaCount }}
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: opennebula-csi
+        {{- with .Values.controller.podAnnotations }}
+{{ toYaml . | nindent 8 }}
+        {{- end }}
       labels:
-        app: opennebula-csi-controller
-        role: opennebula-csi
+        app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: controller
     spec:
       priorityClassName: system-cluster-critical
-      serviceAccount: opennebula-csi-controller-sa
+      serviceAccountName: {{ include "opennebula-csi.controllerServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.affinity }}
+      affinity:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.tolerations }}
+      tolerations:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
       containers:
-        # Controller server container
         - name: opennebula-csi
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.debugPort }}
+          {{- if or .Values.debugPort .Values.metrics.driver.enabled $lastNodePreferenceWebhookEnabled }}
           ports:
+            {{- if .Values.debugPort }}
             - containerPort: {{ .Values.debugPort }}
               name: debug
               protocol: TCP
+            {{- end }}
+            {{- if .Values.metrics.driver.enabled }}
+            - containerPort: {{ .Values.metrics.driver.port }}
+              name: driver-metrics
+              protocol: TCP
+            {{- end }}
+            {{- if $lastNodePreferenceWebhookEnabled }}
+            - containerPort: {{ $lastNodePreferenceWebhookPort }}
+              name: lastnode-wh
+              protocol: TCP
+            {{- end }}
           {{- end }}
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--v=5"
+            - "--v={{ $controllerLogLevel }}"
+            - "--vmodule=leaderelection=0"
+            {{- with .Values.driver.extraArgs }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.controller.extraArgs }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
-            - name: ONE_XMLRPC
-              value: "{{ .Values.oneApiEndpoint }}"
-            - name: ONE_AUTH
-              valueFrom:
-                secretKeyRef:
-                  name: csi-opennebula-auth
-                  key: credentials
+            - name: ONE_CSI_CONTROLLER_LEADER_ELECTION_ENABLED
+              value: {{ $leaderElectionEnabled | quote }}
+            - name: ONE_CSI_CONTROLLER_LEADER_ELECTION_LEASE_NAME
+              value: {{ $leaderElectionLeaseName | quote }}
+            - name: ONE_CSI_CONTROLLER_LEADER_ELECTION_LEASE_NAMESPACE
+              value: {{ $leaderElectionLeaseNamespace | quote }}
+            - name: ONE_CSI_CONTROLLER_LEADER_ELECTION_LEASE_DURATION_SECONDS
+              value: {{ $leaderElectionLeaseDuration | quote }}
+            - name: ONE_CSI_CONTROLLER_LEADER_ELECTION_RENEW_DEADLINE_SECONDS
+              value: {{ $leaderElectionRenewDeadline | quote }}
+            - name: ONE_CSI_CONTROLLER_LEADER_ELECTION_RETRY_PERIOD_SECONDS
+              value: {{ $leaderElectionRetryPeriod | quote }}
+{{ include "opennebula-csi.driverCommonEnv" . | nindent 12 }}
+            {{- with .Values.controller.extraEnv }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.controller.resources }}
+          resources:
+{{ toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: csi-socket-dir
               mountPath: /csi
-        # CSI provisioner sidecar https://kubernetes-csi.github.io/docs/external-provisioner.html
+            {{- if $lastNodePreferenceWebhookEnabled }}
+            - name: last-node-webhook-tls
+              mountPath: /tls/webhook
+              readOnly: true
+            {{- end }}
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v5.3.0
           imagePullPolicy: IfNotPresent
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - containerPort: {{ .Values.metrics.ports.provisioner }}
+              name: prov-metrics
+              protocol: TCP
+          {{- end }}
           args:
-            - "--v=5"
+            - "--v={{ $controllerSidecarLogLevel }}"
+            - "--vmodule=leaderelection=0"
             - "--csi-address=$(ADDRESS)"
+            - "--timeout={{ .Values.controller.sidecarTimeoutSeconds }}s"
+            - "--leader-election"
             - "--default-fstype=ext4"
+            - "--extra-create-metadata"
+            {{- if .Values.metrics.enabled }}
+            - "--http-endpoint=:{{ .Values.metrics.ports.provisioner }}"
+            {{- end }}
           env:
             - name: ADDRESS
               value: /csi/csi.sock
           volumeMounts:
             - name: csi-socket-dir
               mountPath: /csi
-        # CSI attacher sidecar https://kubernetes-csi.github.io/docs/external-attacher.html
         - name: csi-attacher
           image: registry.k8s.io/sig-storage/csi-attacher:v4.9.0
           imagePullPolicy: IfNotPresent
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - containerPort: {{ .Values.metrics.ports.attacher }}
+              name: att-metrics
+              protocol: TCP
+          {{- end }}
           args:
-            - "--v=5"
+            - "--v={{ $controllerSidecarLogLevel }}"
+            - "--vmodule=leaderelection=0"
             - "--csi-address=$(ADDRESS)"
-            - "--timeout=2m" # TODO: adjust
+            - "--timeout={{ .Values.controller.sidecarTimeoutSeconds }}s"
+            - "--leader-election"
+            {{- if .Values.metrics.enabled }}
+            - "--http-endpoint=:{{ .Values.metrics.ports.attacher }}"
+            {{- end }}
           env:
             - name: ADDRESS
               value: /csi/csi.sock
           volumeMounts:
             - name: csi-socket-dir
               mountPath: /csi
-        # Liveness probe: https://kubernetes-csi.github.io/docs/livenessprobe.html
+        - name: csi-resizer
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.13.2
+          imagePullPolicy: IfNotPresent
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - containerPort: {{ .Values.metrics.ports.resizer }}
+              name: res-metrics
+              protocol: TCP
+          {{- end }}
+          args:
+            - "--v={{ $controllerSidecarLogLevel }}"
+            - "--vmodule=leaderelection=0"
+            - "--csi-address=$(ADDRESS)"
+            - "--timeout={{ .Values.controller.sidecarTimeoutSeconds }}s"
+            - "--leader-election"
+            {{- if .Values.metrics.enabled }}
+            - "--http-endpoint=:{{ .Values.metrics.ports.resizer }}"
+            {{- end }}
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          volumeMounts:
+            - name: csi-socket-dir
+              mountPath: /csi
+        {{- if .Values.snapshotter.enabled }}
+        - name: csi-snapshotter
+          image: {{ .Values.snapshotter.image | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--v={{ $controllerSidecarLogLevel }}"
+            - "--vmodule=leaderelection=0"
+            - "--csi-address=$(ADDRESS)"
+            - "--leader-election"
+            {{- with .Values.snapshotter.extraArgs }}
+{{ toYaml . | nindent 12 }}
+            {{- end }}
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          volumeMounts:
+            - name: csi-socket-dir
+              mountPath: /csi
+        {{- end }}
         - name: liveness-probe
           imagePullPolicy: IfNotPresent
           image: registry.k8s.io/sig-storage/livenessprobe:v2.16.0
@@ -84,8 +223,13 @@ spec:
             - --probe-timeout=3s
             - --health-port=9808
           volumeMounts:
-          - name: csi-socket-dir
-            mountPath: /csi
+            - name: csi-socket-dir
+              mountPath: /csi
       volumes:
         - name: csi-socket-dir
           emptyDir: {}
+        {{- if $lastNodePreferenceWebhookEnabled }}
+        - name: last-node-webhook-tls
+          secret:
+            secretName: {{ include "opennebula-csi.lastNodeWebhookSecretName" . }}
+        {{- end }}

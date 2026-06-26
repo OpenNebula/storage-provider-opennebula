@@ -1,0 +1,261 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: opennebuladatastores.storageprovider.opennebula.sparkaiur.io
+spec:
+  group: storageprovider.opennebula.sparkaiur.io
+  scope: Cluster
+  names:
+    plural: opennebuladatastores
+    singular: opennebuladatastore
+    kind: OpenNebulaDatastore
+    shortNames:
+      - oneds
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: ID
+          type: integer
+          jsonPath: .status.id
+        - name: Name
+          type: string
+          jsonPath: .status.name
+        - name: Capacity
+          type: string
+          jsonPath: .status.capacityDisplay
+        - name: Type
+          type: string
+          jsonPath: .status.type
+        - name: Backend
+          type: string
+          jsonPath: .status.backend
+        - name: SCs
+          type: string
+          jsonPath: .status.storageClassesDisplay
+        - name: Metrics
+          type: string
+          jsonPath: .status.metricsDisplay
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                enabled:
+                  type: boolean
+                maintenanceMode:
+                  type: boolean
+                maintenanceMessage:
+                  type: string
+                notes:
+                  type: string
+                discovery:
+                  type: object
+                  properties:
+                    opennebulaDatastoreID:
+                      type: integer
+                    expectedBackend:
+                      type: string
+                    allowed:
+                      type: boolean
+                validation:
+                  type: object
+                  properties:
+                    mode:
+                      type: string
+                    runNonce:
+                      type: string
+                    jobTemplate:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                phase:
+                  type: string
+                health:
+                  type: string
+                id:
+                  type: integer
+                name:
+                  type: string
+                type:
+                  type: string
+                backend:
+                  type: string
+                capacityDisplay:
+                  type: string
+                storageClassesDisplay:
+                  type: string
+                metricsDisplay:
+                  type: string
+                referencedByStorageClass:
+                  type: boolean
+                referenceCount:
+                  type: integer
+                  format: int32
+                validationEligible:
+                  type: boolean
+                validationLastOutcome:
+                  type: string
+                lastValidationAge:
+                  type: string
+                lastValidationPhase:
+                  type: string
+                lastValidationSummary:
+                  type: string
+                opennebula:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    name:
+                      type: string
+                    state:
+                      type: string
+                    dsMad:
+                      type: string
+                    tmMad:
+                      type: string
+                    type:
+                      type: string
+                    clusterIDs:
+                      type: array
+                      items:
+                        type: integer
+                    compatibleSystemDatastores:
+                      type: array
+                      items:
+                        type: integer
+                capacity:
+                  type: object
+                  properties:
+                    totalBytes:
+                      type: integer
+                      format: int64
+                    freeBytes:
+                      type: integer
+                      format: int64
+                    usedBytesApprox:
+                      type: integer
+                      format: int64
+                    provisionedPVBytes:
+                      type: integer
+                      format: int64
+                    requestedPVCBytes:
+                      type: integer
+                      format: int64
+                usage:
+                  type: object
+                  properties:
+                    persistentVolumeCount:
+                      type: integer
+                      format: int32
+                    boundPVCCount:
+                      type: integer
+                      format: int32
+                    attachedVolumeCount:
+                      type: integer
+                      format: int32
+                    storageClasses:
+                      type: array
+                      items:
+                        type: string
+                    boundClaims:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          namespace:
+                            type: string
+                          name:
+                            type: string
+                          uid:
+                            type: string
+                storageClassDetails:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      volumeBindingMode:
+                        type: string
+                      allowVolumeExpansion:
+                        type: boolean
+                      backendCompatible:
+                        type: boolean
+                      warnings:
+                        type: array
+                        items:
+                          type: string
+                validation:
+                  type: object
+                  properties:
+                    lastRunTime:
+                      type: string
+                      format: date-time
+                    lastCompletedTime:
+                      type: string
+                      format: date-time
+                    lastRunNonce:
+                      type: string
+                    phase:
+                      type: string
+                    jobName:
+                      type: string
+                    message:
+                      type: string
+                    result:
+                      type: object
+                      properties:
+                        readIops:
+                          type: integer
+                          format: int64
+                        writeIops:
+                          type: integer
+                          format: int64
+                        readBwBytes:
+                          type: integer
+                          format: int64
+                        writeBwBytes:
+                          type: integer
+                          format: int64
+                        latencyP50Micros:
+                          type: integer
+                          format: int64
+                        latencyP99Micros:
+                          type: integer
+                          format: int64
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string

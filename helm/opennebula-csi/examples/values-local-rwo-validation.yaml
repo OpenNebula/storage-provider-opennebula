@@ -1,0 +1,64 @@
+# Example values for validating local OpenNebula IMAGE datastore RWO volumes.
+# This is a ready-to-adapt validation profile, not a production default.
+#
+# Replace datastore ID 100 with the local IMAGE datastore ID in your environment.
+# Local IMAGE datastore volumes are placement-sensitive. Detached local
+# persistent-disk expansion is intentionally rejected, so validate expansion
+# while the volume is attached.
+
+oneApiEndpoint: "http://<OPENNEBULA_XMLRPC_HOST>:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: "opennebula-csi-auth"
+    key: "credentials"
+  inlineAuth: ""
+
+image:
+  repository: "ghcr.io/opennebula/opennebula-csi"
+  tag: "<IMAGE_TAG>"
+  # Always is useful while validating freshly built images. Change this for
+  # production if you pin immutable image tags.
+  pullPolicy: "Always"
+
+driver:
+  logLevel: 5
+  defaultDatastores:
+    - "100"
+  datastoreSelectionPolicy: "ordered"
+  allowedDatastoreTypes:
+    - "local"
+
+featureGates:
+  compatibilityAwareSelection: true
+  detachedDiskExpansion: true
+  cephfsExpansion: true
+  cephfsSnapshots: false
+  cephfsClones: false
+  cephfsSelfHealing: false
+  cephfsPersistentRecovery: true
+  cephfsKernelMounts: false
+  localRWOStaleMountRecovery: false
+  topologyAccessibility: false
+
+snapshotter:
+  enabled: false
+
+storageClasses:
+  - name: opennebula-local-rwo-ext4
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    parameters:
+      datastoreIDs: "100"
+      datastoreSelectionPolicy: ordered
+      fsType: ext4
+
+  - name: opennebula-local-rwo-xfs
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    parameters:
+      datastoreIDs: "100"
+      datastoreSelectionPolicy: ordered
+      fsType: xfs

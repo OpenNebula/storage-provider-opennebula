@@ -1,0 +1,28 @@
+oneApiEndpoint: "http://opennebula.example.internal:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: opennebula-csi-auth
+    key: credentials
+
+driver:
+  defaultDatastores:
+    - "300"
+  datastoreSelectionPolicy: "least-used"
+  allowedDatastoreTypes:
+    - "local"
+    - "ceph"
+    - "cephfs"
+
+storageClasses:
+  - name: opennebula-cephfs-static
+    reclaimPolicy: Retain
+    allowVolumeExpansion: false
+    volumeBindingMode: Immediate
+    mountOptions: []
+    parameters:
+      datastoreIDs: "300"
+      datastoreSelectionPolicy: "least-used"
+      sharedFilesystemPath: "/kubernetes/static/model-cache"
+      csi.storage.k8s.io/node-stage-secret-name: "cephfs-node-stage"
+      csi.storage.k8s.io/node-stage-secret-namespace: "kube-system"

@@ -1,0 +1,52 @@
+namespaceOverride: "kube-system"
+oneApiEndpoint: "http://opennebula.internal:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: omni-opennebula-auth
+    key: credentials
+
+image:
+  repository: "ghcr.io/sparkaiur/opennebula-csi"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+driver:
+  defaultDatastores:
+    - "100"
+    - "101"
+    - "102"
+  datastoreSelectionPolicy: "least-used"
+  allowedDatastoreTypes:
+    - "local"
+  env:
+    - name: GODEBUG
+      value: "madvdontneed=1"
+
+controller:
+  replicaCount: 1
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+node:
+  tolerations:
+    - operator: Exists
+
+storageClasses:
+  - name: omni-opennebula-balanced
+    annotations:
+      storageclass.kubernetes.io/is-default-class: "false"
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    mountOptions: []
+    parameters:
+      datastoreIDs: "100,101,102"
+      datastoreSelectionPolicy: "least-used"
+      fsType: "ext4"
+      devPrefix: "vd"
+      cache: "none"

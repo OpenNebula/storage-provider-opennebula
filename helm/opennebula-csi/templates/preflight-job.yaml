@@ -1,0 +1,66 @@
+{{- if .Values.preflight.enabled }}
+{{- $nodeStageRefs := list -}}
+{{- range .Values.preflight.nodeStageSecretRefs }}
+{{- $nodeStageRefs = append $nodeStageRefs (printf "%s/%s" .namespace .name) -}}
+{{- end }}
+{{- $provisionerRefs := list -}}
+{{- range .Values.preflight.provisionerSecretRefs }}
+{{- $provisionerRefs = append $provisionerRefs (printf "%s/%s" .namespace .name) -}}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-preflight" (include "opennebula-csi.fullname" .) }}
+  namespace: {{ include "opennebula-csi.namespace" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: preflight
+  {{- if .Values.preflight.failReleaseOnError }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  {{- end }}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "opennebula-csi.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: preflight
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "opennebula-csi.controllerServiceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: preflight
+          image: "{{ include "opennebula-csi.preflightImageRepository" . }}:{{ include "opennebula-csi.preflightImageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--mode=preflight"
+            - "--output=text"
+            {{- if .Values.preflight.datastores }}
+            - "--preflight-datastores={{ join "," .Values.preflight.datastores }}"
+            {{- end }}
+            {{- if $nodeStageRefs }}
+            - "--preflight-node-stage-secrets={{ join "," $nodeStageRefs }}"
+            {{- end }}
+            {{- if $provisionerRefs }}
+            - "--preflight-provisioner-secrets={{ join "," $provisionerRefs }}"
+            {{- end }}
+            {{- if .Values.snapshotter.enabled }}
+            - "--require-snapshot-crds"
+            {{- end }}
+            {{- if or .Values.metrics.controller.serviceMonitor.enabled .Values.metrics.node.serviceMonitor.enabled }}
+            - "--require-servicemonitor-crds"
+            {{- end }}
+            - "--v={{ .Values.driver.logLevel }}"
+          env:
+{{ include "opennebula-csi.driverCommonEnv" . | nindent 12 }}
+{{- end }}

@@ -6,7 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
 	"github.com/kubernetes-csi/csi-test/v5/pkg/sanity"
 	"k8s.io/mount-utils"
 	"k8s.io/utils/exec"
@@ -38,6 +38,7 @@ func getDriver() *Driver {
 	csiPluginConfig := config.LoadConfiguration()
 	csiPluginConfig.OverrideVal(config.OpenNebulaRPCEndpointVar, "http://localhost:2633/RPC2")
 	csiPluginConfig.OverrideVal(config.OpenNebulaCredentialsVar, "oneadmin:opennebula")
+	csiPluginConfig.OverrideVal(config.DefaultDatastoresVar, "100")
 	driverOpts := &DriverOptions{
 		NodeID:             "test-node-id",
 		DriverName:         DefaultDriverName,
@@ -50,6 +51,10 @@ func getDriver() *Driver {
 }
 
 func TestDriver(t *testing.T) {
+	if os.Getenv("RUN_CSI_SANITY_TESTS") != "1" {
+		t.Skip("set RUN_CSI_SANITY_TESTS=1 to run CSI sanity tests")
+	}
+
 	tmpDir := os.TempDir()
 	defer os.Remove(tmpDir)
 
@@ -64,6 +69,7 @@ func TestDriver(t *testing.T) {
 	csiPluginConfig := config.LoadConfiguration()
 	csiPluginConfig.OverrideVal(config.OpenNebulaRPCEndpointVar, "http://localhost:2633/RPC2")
 	csiPluginConfig.OverrideVal(config.OpenNebulaCredentialsVar, "oneadmin:opennebula")
+	csiPluginConfig.OverrideVal(config.DefaultDatastoresVar, "100")
 	driverOptions := &DriverOptions{
 		DriverName:         "csi.opennebula.io",
 		NodeID:             "test-node",

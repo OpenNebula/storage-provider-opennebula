@@ -20,6 +20,9 @@ ARG BUILDPLATFORM=linux/amd64
 FROM --platform=${BUILDPLATFORM} golang:1.24 AS builder
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -40,7 +43,9 @@ COPY pkg/ pkg/
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
-    go build -a -o opennebula-csi cmd/opennebula-csi/main.go
+    go build -a \
+    -ldflags "-X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverVersion=${VERSION} -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverCommit=${COMMIT} -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverBuildDate=${BUILD_DATE}" \
+    -o opennebula-csi cmd/opennebula-csi/main.go
 
 ###
 # TARGET IMAGES
@@ -52,7 +57,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
 FROM alpine:3.22 AS opennebula-csi
 WORKDIR /app
 
-RUN apk add --no-cache e2fsprogs util-linux
+RUN apk add --no-cache ceph-common ceph-fuse e2fsprogs e2fsprogs-extra xfsprogs xfsprogs-extra util-linux udev
 
 COPY --from=builder /workspace/opennebula-csi .
 

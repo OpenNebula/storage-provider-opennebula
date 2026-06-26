@@ -1,0 +1,23 @@
+credentials:
+  existingSecret:
+    name: opennebula-csi-auth
+
+driver:
+  defaultDatastores:
+    - "111"
+  datastoreSelectionPolicy: "autopilot"
+
+snapshotter:
+  enabled: true
+
+storageClasses:
+  - name: opennebula-csi-snapshot
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: Immediate
+    parameters:
+      datastoreIDs: "111"
+      datastoreSelectionPolicy: "autopilot"
+      fsType: "xfs"
+      cache: "none"
+      driver: "raw"

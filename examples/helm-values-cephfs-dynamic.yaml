@@ -1,0 +1,32 @@
+oneApiEndpoint: "http://opennebula.example.internal:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: opennebula-csi-auth
+    key: credentials
+
+driver:
+  defaultDatastores:
+    - "300"
+  datastoreSelectionPolicy: "least-used"
+  allowedDatastoreTypes:
+    - "local"
+    - "ceph"
+    - "cephfs"
+
+storageClasses:
+  - name: opennebula-cephfs-dynamic
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: Immediate
+    mountOptions: []
+    parameters:
+      datastoreIDs: "300"
+      datastoreSelectionPolicy: "least-used"
+      sharedFilesystemSubvolumeGroup: "csi"
+      csi.storage.k8s.io/provisioner-secret-name: "cephfs-provisioner"
+      csi.storage.k8s.io/provisioner-secret-namespace: "kube-system"
+      csi.storage.k8s.io/controller-expand-secret-name: "cephfs-provisioner"
+      csi.storage.k8s.io/controller-expand-secret-namespace: "kube-system"
+      csi.storage.k8s.io/node-stage-secret-name: "cephfs-node-stage"
+      csi.storage.k8s.io/node-stage-secret-namespace: "kube-system"

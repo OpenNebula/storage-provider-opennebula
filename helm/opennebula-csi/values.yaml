@@ -1,10 +1,260 @@
 # Default values for opennebula-csi.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
 
-oneAuth: "oneadmin:changeme"
+nameOverride: ""
+fullnameOverride: ""
+namespaceOverride: ""
+
 oneApiEndpoint: "http://localhost:2633/RPC2"
+
+credentials:
+  existingSecret:
+    name: ""
+    key: "credentials"
+  inlineAuth: ""
+
 image:
-  repository: "ghcr.io/opennebula/opennebula-csi"
-  tag: "latest"
+  repository: "nudevco/opennebula-csi"
+  tag: "v0.5.15"
   pullPolicy: "IfNotPresent"
+
+imagePullSecrets: []
+debugPort: null
+
+driver:
+  logLevel: 5
+  defaultDatastores: []
+  datastoreSelectionPolicy: "least-used"
+  vmHotplugTimeoutSeconds: 120
+  vmHotplugTimeoutBaseSeconds: 120
+  vmHotplugTimeoutPer100GiSeconds: 60
+  vmHotplugTimeoutMaxSeconds: 900
+  vmHotplugStuckVmCooldownSeconds: 300
+  nodeDeviceDiscoveryTimeoutSeconds: 30
+  nodeExpand:
+    verifyTimeoutSeconds: 120
+    retryIntervalSeconds: 2
+    sizeToleranceBytes: 134217728
+  nodeDeviceCache:
+    enabled: true
+    ttlSeconds: 600
+    udevSettleTimeoutSeconds: 10
+    rescanOnMissEnabled: true
+  hotplugQueue:
+    enabled: true
+    maxWaitSeconds: 180
+    ageBoostSeconds: 30
+    dedupeEnabled: true
+    perItemWaitSeconds: 60
+    maxWaitCapSeconds: 900
+    maxActiveSeconds: 900
+    snapshotDebounceSeconds: 2
+  hotplugDiagnostics:
+    enabled: true
+    stuckAfterSeconds: 300
+    progressWindowSeconds: 60
+    recoveryMode: "readOnly"
+  nodeHotplugGuard:
+    enabled: true
+    failureThreshold: 2
+    requireKubernetesReady: true
+    requireOpenNebulaReady: true
+  localRestartOptimization:
+    enabled: true
+    detachGraceSeconds: 90
+    maxDetachGraceSeconds: 300
+    requireNodeReady: true
+  maintenanceMode:
+    releaseMinSeconds: 300
+    releaseMaxSeconds: 1800
+  metadataDriftQuarantine:
+    enabled: true
+    failureThreshold: 2
+    ttlSeconds: 1800
+  hostArtifactQuarantine:
+    enabled: true
+    failureThreshold: 1
+    ttlSeconds: 3600
+  localDeviceRecovery:
+    enabled: true
+    minAttempts: 3
+    minAgeSeconds: 60
+    intervalSeconds: 15
+    cooldownSeconds: 300
+    maxAttemptsPerVolume: 2
+  localRWOStaleMountRecovery:
+    activePodRecovery: false
+    maxAttempts: 3
+    backoffSeconds: 10
+  lastNodePreference:
+    enabled: true
+    policy: "local-single-writer"
+    webhook:
+      enabled: true
+      port: 9443
+      failurePolicy: "Ignore"
+  stuckAttachmentReconciler:
+    enabled: true
+    intervalSeconds: 60
+    orphanGraceSeconds: 120
+    staleVolumeAttachmentGraceSeconds: 90
+  adaptiveTimeout:
+    enabled: true
+    minSamples: 8
+    sampleWindow: 20
+    p95MultiplierPercent: 400
+    maxSeconds: 1800
+  allowedDatastoreTypes:
+    - "local"
+    - "ceph"
+    - "cephfs"
+  extraArgs: []
+  env: []
+
+featureGates:
+  compatibilityAwareSelection: true
+  detachedDiskExpansion: true
+  cephfsExpansion: true
+  cephfsSnapshots: false
+  cephfsClones: false
+  cephfsSelfHealing: false
+  cephfsPersistentRecovery: true
+  cephfsKernelMounts: false
+  localRWOStaleMountRecovery: false
+  topologyAccessibility: false
+
+controller:
+  replicaCount: 1
+  logLevel: 3
+  sidecarLogLevel: 3
+  sidecarTimeoutSeconds: 960
+  leaderElection:
+    enabled: true
+    leaseName: "opennebula-csi-controller"
+    leaseNamespace: ""
+    leaseDurationSeconds: 45
+    renewDeadlineSeconds: 30
+    retryPeriodSeconds: 10
+  podAnnotations: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraArgs: []
+  extraEnv: []
+
+inventoryController:
+  enabled: false
+  namespace: ""
+  replicaCount: 1
+  logLevel: 3
+  authorityMode: "strict"
+  leaderElectionID: "opennebula-csi-inventory-controller"
+  resyncSeconds:
+    datastores: 60
+    nodes: 30
+  validation:
+    enabled: true
+    defaultImage: "alpine:3.22"
+    profiles:
+      smoke:
+        size: "4Gi"
+        fioArgs:
+          - "--name=validate"
+          - "--filename=/data/validation.bin"
+          - "--rw=randrw"
+          - "--bs=4k"
+          - "--size=256Mi"
+          - "--iodepth=16"
+          - "--runtime=30"
+          - "--time_based"
+      throughput:
+        size: "8Gi"
+        fioArgs:
+          - "--name=validate"
+          - "--filename=/data/validation.bin"
+          - "--rw=read"
+          - "--bs=1M"
+          - "--size=1Gi"
+          - "--iodepth=32"
+          - "--runtime=60"
+          - "--time_based"
+      latency:
+        size: "4Gi"
+        fioArgs:
+          - "--name=validate"
+          - "--filename=/data/validation.bin"
+          - "--rw=randread"
+          - "--bs=4k"
+          - "--size=256Mi"
+          - "--iodepth=1"
+          - "--runtime=60"
+          - "--time_based"
+  podAnnotations: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraArgs: []
+  extraEnv: []
+
+node:
+  podAnnotations: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations:
+    - operator: "Exists"
+  affinity: {}
+  extraArgs: []
+  extraEnv: []
+
+metrics:
+  enabled: true
+  path: /metrics
+  driver:
+    enabled: true
+    port: 9810
+  controller:
+    service:
+      annotations: {}
+      labels: {}
+    serviceMonitor:
+      enabled: false
+      namespace: ""
+      interval: 30s
+      scrapeTimeout: 10s
+      labels: {}
+      annotations: {}
+  node:
+    service:
+      annotations: {}
+      labels: {}
+    serviceMonitor:
+      enabled: false
+      namespace: ""
+      interval: 30s
+      scrapeTimeout: 10s
+      labels: {}
+      annotations: {}
+  ports:
+    provisioner: 8685
+    attacher: 8686
+    resizer: 8687
+    registrar: 8688
+
+preflight:
+  enabled: false
+  failReleaseOnError: true
+  localImmediateBindingPolicy: "warn"
+  image:
+    repository: ""
+    tag: ""
+  datastores: []
+  nodeStageSecretRefs: []
+  provisionerSecretRefs: []
+
+snapshotter:
+  enabled: true
+  image: registry.k8s.io/sig-storage/csi-snapshotter:v8.2.1
+  extraArgs: []
+
+storageClasses: []

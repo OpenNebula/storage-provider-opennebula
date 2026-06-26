@@ -1,0 +1,15 @@
+credentials:
+  existingSecret:
+    name: opennebula-csi-auth
+
+metrics:
+  enabled: true
+  driver:
+    enabled: true
+    port: 9810
+  controller:
+    serviceMonitor:
+      enabled: true
+  node:
+    serviceMonitor:
+      enabled: true

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-opennebula-clone
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: opennebula-csi-snapshot
+  dataSource:
+    apiGroup: ""
+    kind: PersistentVolumeClaim
+    name: demo-opennebula-pvc

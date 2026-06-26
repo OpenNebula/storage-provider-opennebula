@@ -28,7 +28,9 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
 )
 
@@ -49,10 +51,10 @@ func NewGRPCServer() *GRPCServer {
 }
 
 // Server lifecycle
-func (s *GRPCServer) Start(endpoint string, identityServer *IdentityServer, nodeServer *NodeServer, controllerServer *ControllerServer) {
+func (s *GRPCServer) Start(endpoint string, identityServer *IdentityServer, nodeServer *NodeServer, controllerServer *ControllerServer, leadership *ControllerLeadership) {
 	s.wg.Add(1)
 
-	go s.run(endpoint, identityServer, nodeServer, controllerServer)
+	go s.run(endpoint, identityServer, nodeServer, controllerServer, leadership)
 }
 
 func (s *GRPCServer) Wait() {
@@ -92,7 +94,7 @@ func (s *GRPCServer) ForceStop() {
 	s.listener.Close()
 }
 
-func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeServer *NodeServer, controllerServer *ControllerServer) {
+func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeServer *NodeServer, controllerServer *ControllerServer, leadership *ControllerLeadership) {
 	defer s.wg.Done()
 
 	s.endpoint = endpoint
@@ -111,7 +113,7 @@ func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeSe
 	s.listener = listener
 
 	serverOptions := []grpc.ServerOption{
-		grpc.UnaryInterceptor(logInterceptor),
+		grpc.ChainUnaryInterceptor(logInterceptor, controllerLeaderInterceptor(leadership)),
 	}
 	s.server = grpc.NewServer(serverOptions...)
 
@@ -134,6 +136,18 @@ func (s *GRPCServer) run(endpoint string, identityServer *IdentityServer, nodeSe
 	klog.Infof("Starting GRPC server on %s ...", address)
 	if err := s.server.Serve(listener); err != nil {
 		klog.Fatalf("GRPC server failed: %s", err)
+	}
+}
+
+func controllerLeaderInterceptor(leadership *ControllerLeadership) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if leadership == nil || !leadership.Enabled() || !strings.HasPrefix(info.FullMethod, "/csi.v1.Controller/") {
+			return handler(ctx, req)
+		}
+		if leadership.IsLeader() {
+			return handler(ctx, req)
+		}
+		return nil, status.Error(codes.Unavailable, leadership.UnavailableMessage())
 	}
 }
 

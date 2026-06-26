@@ -1,0 +1,27 @@
+credentials:
+  existingSecret:
+    name: opennebula-csi-auth
+
+preflight:
+  enabled: true
+  failReleaseOnError: true
+  datastores:
+    - "111"
+    - "300"
+  nodeStageSecretRefs:
+    - namespace: kube-system
+      name: cephfs-node-stage
+  provisionerSecretRefs:
+    - namespace: kube-system
+      name: cephfs-provisioner
+
+metrics:
+  controller:
+    serviceMonitor:
+      enabled: true
+  node:
+    serviceMonitor:
+      enabled: true
+
+snapshotter:
+  enabled: true

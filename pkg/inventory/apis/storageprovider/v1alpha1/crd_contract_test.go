@@ -13,7 +13,7 @@ func TestDatastoreCRDIncludesDisplayColumnsAndTypedStatus(t *testing.T) {
 	if !ok {
 		t.Fatal("failed to resolve current file path")
 	}
-	crdPath := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "../../../../../helm/opennebula-csi/crds/opennebuladatastores.storageprovider.opennebula.sparkaiur.io.yaml"))
+	crdPath := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "../../../../../helm/opennebula-csi/crds/opennebuladatastores.storageprovider.opennebula.io.yaml"))
 	payload, err := os.ReadFile(crdPath)
 	if err != nil {
 		t.Fatalf("failed reading datastore CRD: %v", err)
@@ -52,7 +52,7 @@ func TestBenchmarkRunCRDExists(t *testing.T) {
 	if !ok {
 		t.Fatal("failed to resolve current file path")
 	}
-	crdPath := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "../../../../../helm/opennebula-csi/crds/opennebuladatastorebenchmarkruns.storageprovider.opennebula.sparkaiur.io.yaml"))
+	crdPath := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "../../../../../helm/opennebula-csi/crds/opennebuladatastorebenchmarkruns.storageprovider.opennebula.io.yaml"))
 	payload, err := os.ReadFile(crdPath)
 	if err != nil {
 		t.Fatalf("failed reading benchmark run CRD: %v", err)
@@ -81,7 +81,7 @@ func TestNodeCRDIncludesHotplugDiagnosisStatus(t *testing.T) {
 	if !ok {
 		t.Fatal("failed to resolve current file path")
 	}
-	crdPath := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "../../../../../helm/opennebula-csi/crds/opennebulaNodes.storageprovider.opennebula.sparkaiur.io.yaml"))
+	crdPath := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "../../../../../helm/opennebula-csi/crds/opennebulaNodes.storageprovider.opennebula.io.yaml"))
 	payload, err := os.ReadFile(crdPath)
 	if err != nil {
 		t.Fatalf("failed reading node CRD: %v", err)

@@ -34,7 +34,7 @@ jobs:
       CEPHFS_ADMIN_KEY: ${{ secrets.STAGING_CEPHFS_ADMIN_KEY }}
       CEPHFS_NODE_USER_ID: ${{ secrets.STAGING_CEPHFS_NODE_USER_ID }}
       CEPHFS_NODE_USER_KEY: ${{ secrets.STAGING_CEPHFS_NODE_USER_KEY }}
-      CSI_IMAGE_REPOSITORY: ghcr.io/sparkaiur/opennebula-csi
+      CSI_IMAGE_REPOSITORY: ghcr.io/opennebula/opennebula-csi
       CSI_IMAGE_TAG: staging-${{ github.sha }}
     steps:
       - name: Checkout repository

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

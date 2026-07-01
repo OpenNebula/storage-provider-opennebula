@@ -24,10 +24,10 @@ rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["storageprovider.opennebula.sparkaiur.io"]
+  - apiGroups: ["storageprovider.opennebula.io"]
     resources: ["opennebuladatastores", "opennebulanodes", "opennebuladatastorebenchmarkruns"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["storageprovider.opennebula.sparkaiur.io"]
+  - apiGroups: ["storageprovider.opennebula.io"]
     resources: ["opennebuladatastores/status", "opennebulanodes/status", "opennebuladatastorebenchmarkruns/status"]
     verbs: ["get", "update", "patch"]
 

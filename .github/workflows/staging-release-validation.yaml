@@ -30,7 +30,7 @@ jobs:
       RELEASE_NAME: ${{ inputs.release_name }}
       ONE_XMLRPC: ${{ secrets.STAGING_ONE_XMLRPC }}
       ONE_AUTH: ${{ secrets.STAGING_ONE_AUTH }}
-      CSI_IMAGE_REPOSITORY: ghcr.io/sparkaiur/opennebula-csi
+      CSI_IMAGE_REPOSITORY: ghcr.io/opennebula/opennebula-csi
       CSI_IMAGE_TAG: staging-${{ github.sha }}
     steps:
       - name: Checkout repository

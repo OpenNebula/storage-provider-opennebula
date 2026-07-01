@@ -6,8 +6,8 @@ import (
 	"time"
 
 	datastoreSchema "github.com/OpenNebula/one/src/oca/go/src/goca/schemas/datastore"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
-	inventoryv1alpha1 "github.com/SparkAIUR/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
+	inventoryv1alpha1 "github.com/OpenNebula/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -350,7 +350,7 @@ func TestBenchmarkHelpers(t *testing.T) {
 }
 
 func TestResolveBenchmarkRunDefaultsCephFSAccessModesAndDeadline(t *testing.T) {
-	s := &Syncer{defaultValidationImage: "ghcr.io/sparkaiur/fio:latest"}
+	s := &Syncer{defaultValidationImage: "example.com/opennebula/fio:latest"}
 	item := inventoryv1alpha1.OpenNebulaDatastoreBenchmarkRun{
 		ObjectMeta: metav1.ObjectMeta{Name: "bench", Generation: 2},
 		Spec: inventoryv1alpha1.OpenNebulaDatastoreBenchmarkRunSpec{
@@ -367,7 +367,7 @@ func TestResolveBenchmarkRunDefaultsCephFSAccessModesAndDeadline(t *testing.T) {
 	if resolved.Spec.ActiveDeadlineSeconds == nil || *resolved.Spec.ActiveDeadlineSeconds != defaultValidationActiveDeadlineSeconds {
 		t.Fatalf("expected default benchmark activeDeadlineSeconds=%d, got %#v", defaultValidationActiveDeadlineSeconds, resolved.Spec.ActiveDeadlineSeconds)
 	}
-	if resolved.Spec.Image != "ghcr.io/sparkaiur/fio:latest" {
+	if resolved.Spec.Image != "example.com/opennebula/fio:latest" {
 		t.Fatalf("expected default validation image to be injected, got %q", resolved.Spec.Image)
 	}
 }

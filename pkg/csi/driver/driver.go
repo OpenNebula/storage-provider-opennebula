@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
-	inventorycache "github.com/SparkAIUR/storage-provider-opennebula/pkg/inventory/cache"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
+	inventorycache "github.com/OpenNebula/storage-provider-opennebula/pkg/inventory/cache"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"

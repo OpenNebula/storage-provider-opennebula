@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -230,7 +230,7 @@ func NewDriverMetrics(version, commit string) *DriverMetrics {
 		}, []string{"backend", "datastore_id"}),
 		buildInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "opennebula_csi_build_info",
-			Help: "Build metadata for the SparkAI OpenNebula CSI driver.",
+			Help: "Build metadata for the OpenNebula CSI driver.",
 		}, []string{"version", "commit"}),
 	}
 

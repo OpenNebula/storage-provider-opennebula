@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
-	inventoryv1alpha1 "github.com/SparkAIUR/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	inventoryv1alpha1 "github.com/OpenNebula/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

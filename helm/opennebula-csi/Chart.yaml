@@ -2,9 +2,9 @@ apiVersion: v2
 name: opennebula-csi
 description: OpenNebula CSI Plugin Helm Chart
 type: application
-home: https://github.com/SparkAIUR/storage-provider-opennebula
+home: https://github.com/OpenNebula/storage-provider-opennebula
 sources:
-  - https://github.com/SparkAIUR/storage-provider-opennebula
+  - https://github.com/OpenNebula/storage-provider-opennebula
 # https://github.com/helm/helm/issues/9298
 version: 0.5.15
 appVersion: "v0.5.15"

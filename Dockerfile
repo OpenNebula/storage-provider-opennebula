@@ -44,7 +44,7 @@ COPY pkg/ pkg/
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
     go build -a \
-    -ldflags "-X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverVersion=${VERSION} -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverCommit=${COMMIT} -X github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/driver.driverBuildDate=${BUILD_DATE}" \
+    -ldflags "-X github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver.driverVersion=${VERSION} -X github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver.driverCommit=${COMMIT} -X github.com/OpenNebula/storage-provider-opennebula/pkg/csi/driver.driverBuildDate=${BUILD_DATE}" \
     -o opennebula-csi cmd/opennebula-csi/main.go
 
 ###

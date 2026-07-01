@@ -17,9 +17,9 @@ import (
 	datastoreSchema "github.com/OpenNebula/one/src/oca/go/src/goca/schemas/datastore"
 	"github.com/OpenNebula/one/src/oca/go/src/goca/schemas/shared"
 	vmSchema "github.com/OpenNebula/one/src/oca/go/src/goca/schemas/vm"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
-	inventoryv1alpha1 "github.com/SparkAIUR/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
+	inventoryv1alpha1 "github.com/OpenNebula/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -44,10 +44,10 @@ const (
 	validationJobPrefix                                      = "one-ds-validate-job-"
 	benchmarkPVCPrefix                                       = "one-ds-bench-pvc-"
 	benchmarkJobPrefix                                       = "one-ds-bench-job-"
-	benchmarkFinalizer                                       = "storage-provider.opennebula.sparkaiur.io/benchmark-cleanup"
+	benchmarkFinalizer                                       = "storage-provider.opennebula.io/benchmark-cleanup"
 	benchmarkLabelComponent                                  = "app.kubernetes.io/component"
-	benchmarkLabelRun                                        = "storage-provider.opennebula.sparkaiur.io/benchmark-run"
-	benchmarkLabelDatastoreID                                = "storage-provider.opennebula.sparkaiur.io/datastore-id"
+	benchmarkLabelRun                                        = "storage-provider.opennebula.io/benchmark-run"
+	benchmarkLabelDatastoreID                                = "storage-provider.opennebula.io/datastore-id"
 	benchmarkComponentValue                                  = "datastore-benchmark"
 	defaultValidationActiveDeadlineSeconds int64             = 900
 	eventReasonValidationTriggered                           = "ValidationTriggered"
@@ -57,11 +57,11 @@ const (
 	eventReasonDiscoveryMismatch                             = "DiscoveryMismatch"
 	eventReasonInventoryVMNotFound                           = "VMNotFound"
 	eventReasonInventoryNodeNotFound                         = "NodeNotFound"
-	annotationDatastoreID                                    = "storage-provider.opennebula.sparkaiur.io/datastore-id"
-	topologySystemDSLabel                                    = "topology.opennebula.sparkaiur.io/system-ds"
+	annotationDatastoreID                                    = "storage-provider.opennebula.io/datastore-id"
+	topologySystemDSLabel                                    = "topology.opennebula.io/system-ds"
 	hotplugStateConfigMapName                                = "opennebula-csi-hotplug-state"
 	hotplugDiagnosticsConfigMapName                          = "opennebula-csi-hotplug-diagnostics"
-	sharedBackendAttr                                        = "SPARKAI_CSI_SHARE_BACKEND"
+	sharedBackendAttr                                        = "OPENNEBULA_CSI_SHARE_BACKEND"
 	defaultValidationImagePullPolicy       corev1.PullPolicy = corev1.PullIfNotPresent
 )
 
@@ -2152,7 +2152,7 @@ func filteredNodeLabels(labels map[string]string) map[string]string {
 		case strings.HasPrefix(key, "kubernetes.io/"),
 			strings.HasPrefix(key, "node.kubernetes.io/"),
 			strings.HasPrefix(key, "topology.kubernetes.io/"),
-			strings.HasPrefix(key, "topology.opennebula.sparkaiur.io/"):
+			strings.HasPrefix(key, "topology.opennebula.io/"):
 			filtered[key] = value
 		}
 	}

@@ -1,7 +1,7 @@
 # Example values for staging the alpha feature gates added in v0.4.1.
 #
 # Topology accessibility expects Kubernetes nodes to carry:
-#   topology.opennebula.sparkaiur.io/system-ds=<opennebula-system-datastore-id>
+#   topology.opennebula.io/system-ds=<opennebula-system-datastore-id>
 #
 # For ad-hoc testing without node labels you can also inject:
 # driver:

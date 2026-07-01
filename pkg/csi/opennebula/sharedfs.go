@@ -12,12 +12,12 @@ import (
 const (
 	datastoreTypeCephFS = "cephfs"
 
-	sharedBackendAttr            = "SPARKAI_CSI_SHARE_BACKEND"
+	sharedBackendAttr            = "OPENNEBULA_CSI_SHARE_BACKEND"
 	sharedBackendCephFS          = "cephfs"
-	cephFSAttrFSName             = "SPARKAI_CSI_CEPHFS_FS_NAME"
-	cephFSAttrRootPath           = "SPARKAI_CSI_CEPHFS_ROOT_PATH"
-	cephFSAttrSubvolumeGroup     = "SPARKAI_CSI_CEPHFS_SUBVOLUME_GROUP"
-	cephFSAttrMountOptions       = "SPARKAI_CSI_CEPHFS_MOUNT_OPTIONS"
+	cephFSAttrFSName             = "OPENNEBULA_CSI_CEPHFS_FS_NAME"
+	cephFSAttrRootPath           = "OPENNEBULA_CSI_CEPHFS_ROOT_PATH"
+	cephFSAttrSubvolumeGroup     = "OPENNEBULA_CSI_CEPHFS_SUBVOLUME_GROUP"
+	cephFSAttrMountOptions       = "OPENNEBULA_CSI_CEPHFS_MOUNT_OPTIONS"
 	sharedFilesystemPathParam    = "sharedFilesystemPath"
 	sharedFilesystemGroupParam   = "sharedFilesystemSubvolumeGroup"
 	sharedVolumeIDPrefix         = "cephfs:"

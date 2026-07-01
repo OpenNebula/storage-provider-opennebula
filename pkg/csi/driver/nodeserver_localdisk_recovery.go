@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"

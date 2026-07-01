@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/opennebula"
-	inventoryv1alpha1 "github.com/SparkAIUR/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/opennebula"
+	inventoryv1alpha1 "github.com/OpenNebula/storage-provider-opennebula/pkg/inventory/apis/storageprovider/v1alpha1"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SparkAIUR/storage-provider-opennebula/pkg/csi/config"
+	"github.com/OpenNebula/storage-provider-opennebula/pkg/csi/config"
 	"k8s.io/klog/v2"
 	utilexec "k8s.io/utils/exec"
 )
